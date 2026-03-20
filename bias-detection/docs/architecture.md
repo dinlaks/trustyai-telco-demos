@@ -230,7 +230,30 @@ The correct order for reliable TrustyAI inference logging:
 | Income_enc | float | 0=High, 1=Medium, 2=Low |
 
 **Why ArgMax + Cast(FP32)?**
-scikit-learn's ONNX export includes a `ZipMap` node that outputs a dictionary (probability map per class). OVMS does not support `ZipMap`, and TrustyAI's payload reconciler requires a scalar FP32 output to correctly log and match inference records. The fix: strip `ZipMap`, add `ArgMax` (selects the winning class index) → `Cast(FP32)`.
+
+When scikit-learn exports an MLP to ONNX, the raw output is a table of probabilities — one per class — wrapped in a node called `ZipMap`:
+
+```
+ZipMap output: {"0": 0.12, "1": 0.25, "2": 0.63}   ← probability per tier
+```
+
+This causes two problems:
+- OVMS does not support `ZipMap` and refuses to serve the model
+- TrustyAI needs a single predicted class number, not a dictionary
+
+The fix is two steps:
+
+1. **ArgMax** — picks the class with the highest probability (the winner)
+```
+[0.12, 0.25, 0.63]  →  ArgMax  →  2        (Tier 2 has highest probability)
+```
+
+2. **Cast(FP32)** — converts the result from an integer to a decimal number
+```
+2  →  Cast(FP32)  →  2.0      (TrustyAI only accepts float values for logging)
+```
+
+Without ArgMax + Cast(FP32), the model either won't serve or TrustyAI logs nothing — both silent failures with no error messages.
 
 ---
 
