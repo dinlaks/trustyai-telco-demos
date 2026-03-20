@@ -3,7 +3,13 @@
 ## Before You Start
 
 - Complete all steps in [prerequisites.md](prerequisites.md)
-- Open the notebook `telco-bias-demo-final.ipynb` in your workbench
+- Open the appropriate notebook for your RHOAI version:
+
+| RHOAI Version | Notebook |
+|--------------|---------|
+| 3.3 (recommended) | `notebooks/trustyai-network-slice-bias-rhoai-3.3.ipynb` |
+| 2.25 | `notebooks/trustyai-network-slice-bias-rhoai-2.25.ipynb` |
+
 - Have the OpenShift console open in a second browser tab (Observe → Dashboards)
 - Estimated demo runtime: **25–35 minutes** (infrastructure cells run automatically; key narrative moments are at Cells 9, 10, 11, and 12)
 
