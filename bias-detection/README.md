@@ -201,7 +201,7 @@ scikit-learn's ONNX export produces a `ZipMap` node (outputs a dict) which is in
 
 ## References
 
-- [TrustyAI Documentation](https://trustyai-explainability.github.io/trustyai-site/)
+- [TrustyAI Documentation](https://trustyai.org/docs/main/main)
 - [Red Hat OpenShift AI Documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed)
 - [KServe Documentation](https://kserve.github.io/website/)
 - [EU AI Act — High-Risk AI Systems](https://artificialintelligenceact.eu/)
