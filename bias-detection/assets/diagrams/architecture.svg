@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="Red Hat Display, RedHatDisplay, Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width="960" height="540" fill="#f8f8f8" rx="8"/>
+
+  <!-- Title -->
+  <text x="480" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="#151515">TrustyAI Telco Bias Demo — System Architecture</text>
+
+  <!-- ── Zone labels ─────────────────────────────────────────── -->
+  <text x="100" y="72" text-anchor="middle" font-size="11" fill="#6a6e73" font-weight="600" letter-spacing="1">WORKBENCH</text>
+  <text x="390" y="72" text-anchor="middle" font-size="11" fill="#6a6e73" font-weight="600" letter-spacing="1">INFERENCE PIPELINE</text>
+  <text x="760" y="72" text-anchor="middle" font-size="11" fill="#6a6e73" font-weight="600" letter-spacing="1">MONITORING STACK</text>
+
+  <!-- Zone dividers -->
+  <line x1="220" y1="60" x2="220" y2="510" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="4,4"/>
+  <line x1="570" y1="60" x2="570" y2="510" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <!-- ── WORKBENCH ZONE ──────────────────────────────────────── -->
+
+  <!-- Workbench box -->
+  <rect x="20" y="88" width="180" height="110" rx="8" fill="#ffffff" stroke="#0066cc" stroke-width="2"/>
+  <rect x="20" y="88" width="180" height="28" rx="8" fill="#0066cc"/>
+  <rect x="20" y="104" width="180" height="12" fill="#0066cc"/>
+  <text x="110" y="107" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Data Science Workbench</text>
+  <text x="110" y="130" text-anchor="middle" font-size="10" fill="#333">Jupyter Notebook</text>
+  <text x="110" y="148" text-anchor="middle" font-size="9.5" fill="#555">Cells 1–12</text>
+  <text x="110" y="164" text-anchor="middle" font-size="9.5" fill="#555">SA: telco-wb</text>
+  <text x="110" y="182" text-anchor="middle" font-size="9" fill="#777">rhoai-demo namespace</text>
+
+  <!-- MinIO box -->
+  <rect x="20" y="240" width="180" height="90" rx="8" fill="#ffffff" stroke="#6a6e73" stroke-width="1.5"/>
+  <rect x="20" y="240" width="180" height="26" rx="8" fill="#4d7c0f"/>
+  <rect x="20" y="254" width="180" height="12" fill="#4d7c0f"/>
+  <text x="110" y="259" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">MinIO S3</text>
+  <text x="110" y="282" text-anchor="middle" font-size="10" fill="#333">Persistent Model Store</text>
+  <text x="110" y="298" text-anchor="middle" font-size="9.5" fill="#555">s3://models/network-slice-model</text>
+  <text x="110" y="314" text-anchor="middle" font-size="9" fill="#777">PVC 2Gi • TLS Edge Route</text>
+
+  <!-- ── INFERENCE PIPELINE ZONE ───────────────────────────── -->
+
+  <!-- OVMS box -->
+  <rect x="240" y="88" width="185" height="90" rx="8" fill="#ffffff" stroke="#6a6e73" stroke-width="1.5"/>
+  <rect x="240" y="88" width="185" height="26" rx="8" fill="#8b5cf6"/>
+  <rect x="240" y="102" width="185" height="12" fill="#8b5cf6"/>
+  <text x="332" y="107" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">OVMS Model Server</text>
+  <text x="332" y="130" text-anchor="middle" font-size="10" fill="#333">KServe InferenceService</text>
+  <text x="332" y="146" text-anchor="middle" font-size="9.5" fill="#555">RawDeployment • ONNX v1</text>
+  <text x="332" y="162" text-anchor="middle" font-size="9" fill="#777">port 8888</text>
+
+  <!-- KServe Agent box -->
+  <rect x="240" y="210" width="185" height="90" rx="8" fill="#ffffff" stroke="#ee0000" stroke-width="2"/>
+  <rect x="240" y="210" width="185" height="26" rx="8" fill="#ee0000"/>
+  <rect x="240" y="224" width="185" height="12" fill="#ee0000"/>
+  <text x="332" y="229" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">KServe Agent</text>
+  <text x="332" y="252" text-anchor="middle" font-size="10" fill="#333">Inference Interceptor</text>
+  <text x="332" y="268" text-anchor="middle" font-size="9.5" fill="#555">port 9081 (oc exec target)</text>
+  <text x="332" y="284" text-anchor="middle" font-size="9" fill="#777">Logs every input + output</text>
+
+  <!-- TrustyAI box -->
+  <rect x="240" y="332" width="185" height="90" rx="8" fill="#ffffff" stroke="#ee0000" stroke-width="2"/>
+  <rect x="240" y="332" width="185" height="26" rx="8" fill="#ee0000"/>
+  <rect x="240" y="346" width="185" height="12" fill="#ee0000"/>
+  <text x="332" y="351" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">TrustyAI Service</text>
+  <text x="332" y="374" text-anchor="middle" font-size="10" fill="#333">Fairness Monitoring</text>
+  <text x="332" y="390" text-anchor="middle" font-size="9.5" fill="#555">SPD • DIR • Observations</text>
+  <text x="332" y="406" text-anchor="middle" font-size="9" fill="#777">TrustyAIService CR • PVC 1Gi</text>
+
+  <!-- ── MONITORING ZONE ────────────────────────────────────── -->
+
+  <!-- Pushgateway box -->
+  <rect x="595" y="158" width="175" height="80" rx="8" fill="#ffffff" stroke="#6a6e73" stroke-width="1.5"/>
+  <rect x="595" y="158" width="175" height="26" rx="8" fill="#d97706"/>
+  <rect x="595" y="172" width="175" height="12" fill="#d97706"/>
+  <text x="682" y="177" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Prometheus Pushgateway</text>
+  <text x="682" y="200" text-anchor="middle" font-size="10" fill="#333">SPD / DIR receiver</text>
+  <text x="682" y="216" text-anchor="middle" font-size="9.5" fill="#555">port 9091</text>
+  <text x="682" y="230" text-anchor="middle" font-size="9" fill="#777">trustyai_spd_live • trustyai_dir_live</text>
+
+  <!-- Prometheus box -->
+  <rect x="595" y="268" width="175" height="80" rx="8" fill="#ffffff" stroke="#6a6e73" stroke-width="1.5"/>
+  <rect x="595" y="268" width="175" height="26" rx="8" fill="#dc2626"/>
+  <rect x="595" y="282" width="175" height="12" fill="#dc2626"/>
+  <text x="682" y="287" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Prometheus</text>
+  <text x="682" y="310" text-anchor="middle" font-size="10" fill="#333">User Workload Monitoring</text>
+  <text x="682" y="326" text-anchor="middle" font-size="9.5" fill="#555">ServiceMonitor • PrometheusRule</text>
+  <text x="682" y="340" text-anchor="middle" font-size="9" fill="#777">scrape interval: 15s</text>
+
+  <!-- Grafana box -->
+  <rect x="595" y="375" width="175" height="80" rx="8" fill="#ffffff" stroke="#6a6e73" stroke-width="1.5"/>
+  <rect x="595" y="375" width="175" height="26" rx="8" fill="#1a6e3e"/>
+  <rect x="595" y="389" width="175" height="12" fill="#1a6e3e"/>
+  <text x="682" y="394" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Grafana Dashboard</text>
+  <text x="682" y="417" text-anchor="middle" font-size="10" fill="#333">Bias Lifecycle Visualization</text>
+  <text x="682" y="433" text-anchor="middle" font-size="9.5" fill="#555">OpenShift Console Observe</text>
+  <text x="682" y="449" text-anchor="middle" font-size="9" fill="#777">baseline → biased → fair</text>
+
+  <!-- PrometheusRule badge -->
+  <rect x="790" y="240" width="145" height="50" rx="6" fill="#fff0f0" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="862" y="261" text-anchor="middle" font-size="10" font-weight="700" fill="#dc2626">PrometheusRule</text>
+  <text x="862" y="277" text-anchor="middle" font-size="9" fill="#555">|SPD| &gt; 0.15 → ALERT</text>
+  <text x="862" y="289" text-anchor="middle" font-size="9" fill="#555">DIR &lt; 0.80 → ALERT</text>
+
+  <!-- ── ARROWS ──────────────────────────────────────────────── -->
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#555"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#ee0000"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#0066cc"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#d97706"/>
+    </marker>
+  </defs>
+
+  <!-- Workbench → MinIO (upload model) -->
+  <line x1="110" y1="198" x2="110" y2="238" stroke="#4d7c0f" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="114" y="222" font-size="8.5" fill="#4d7c0f">upload ONNX</text>
+
+  <!-- MinIO → OVMS (model download on startup) -->
+  <line x1="200" y1="270" x2="238" y2="180" stroke="#6a6e73" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow)"/>
+  <text x="215" y="218" font-size="8" fill="#6a6e73" transform="rotate(-40,215,218)">model download</text>
+
+  <!-- Workbench → KServe Agent (oc exec inference) -->
+  <line x1="200" y1="140" x2="238" y2="240" stroke="#ee0000" stroke-width="2" marker-end="url(#arrow-red)"/>
+  <text x="208" y="188" font-size="8.5" fill="#ee0000">oc exec</text>
+  <text x="205" y="198" font-size="8.5" fill="#ee0000">:9081</text>
+
+  <!-- Agent → OVMS (proxy) -->
+  <line x1="332" y1="210" x2="332" y2="180" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="336" y="198" font-size="8" fill="#8b5cf6">proxy</text>
+
+  <!-- Agent → TrustyAI (inference log) -->
+  <line x1="332" y1="300" x2="332" y2="330" stroke="#ee0000" stroke-width="2" marker-end="url(#arrow-red)"/>
+  <text x="336" y="318" font-size="8.5" fill="#ee0000">log payload</text>
+
+  <!-- Workbench → Pushgateway (push SPD/DIR) -->
+  <path d="M 200 155 Q 480 100 593 200" stroke="#d97706" stroke-width="1.8" fill="none" marker-end="url(#arrow-orange)"/>
+  <text x="390" y="108" font-size="8.5" fill="#d97706">push SPD/DIR</text>
+
+  <!-- Pushgateway → Prometheus (scrape) -->
+  <line x1="682" y1="238" x2="682" y2="266" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="686" y="255" font-size="8.5" fill="#dc2626">scrape 15s</text>
+
+  <!-- Prometheus → Grafana -->
+  <line x1="682" y1="348" x2="682" y2="373" stroke="#1a6e3e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="686" y="364" font-size="8.5" fill="#1a6e3e">PromQL</text>
+
+  <!-- Prometheus → PrometheusRule -->
+  <line x1="770" y1="300" x2="790" y2="273" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arrow)"/>
+
+  <!-- ── Legend ───────────────────────────────────────────────── -->
+  <rect x="20" y="465" width="920" height="60" rx="6" fill="#f0f0f0" stroke="#ddd" stroke-width="1"/>
+  <text x="40" y="485" font-size="10" font-weight="700" fill="#333">Legend</text>
+
+  <line x1="100" y1="480" x2="130" y2="480" stroke="#ee0000" stroke-width="2" marker-end="url(#arrow-red)"/>
+  <text x="134" y="484" font-size="9.5" fill="#333">Inference path (oc exec)</text>
+
+  <line x1="290" y1="480" x2="320" y2="480" stroke="#d97706" stroke-width="1.8" marker-end="url(#arrow-orange)"/>
+  <text x="324" y="484" font-size="9.5" fill="#333">SPD/DIR push (Pushgateway)</text>
+
+  <line x1="510" y1="480" x2="540" y2="480" stroke="#6a6e73" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow)"/>
+  <text x="544" y="484" font-size="9.5" fill="#333">Model download (HTTPS)</text>
+
+  <line x1="710" y1="480" x2="740" y2="480" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="744" y="484" font-size="9.5" fill="#333">Prometheus scrape / alert</text>
+
+  <!-- second legend row -->
+  <rect x="100" y="497" width="12" height="12" rx="2" fill="#ee0000"/>
+  <text x="116" y="508" font-size="9.5" fill="#333">TrustyAI / KServe Agent</text>
+  <rect x="290" y="497" width="12" height="12" rx="2" fill="#0066cc"/>
+  <text x="306" y="508" font-size="9.5" fill="#333">Workbench (notebook)</text>
+  <rect x="455" y="497" width="12" height="12" rx="2" fill="#4d7c0f"/>
+  <text x="471" y="508" font-size="9.5" fill="#333">MinIO S3</text>
+  <rect x="560" y="497" width="12" height="12" rx="2" fill="#dc2626"/>
+  <text x="576" y="508" font-size="9.5" fill="#333">Prometheus</text>
+  <rect x="670" y="497" width="12" height="12" rx="2" fill="#1a6e3e"/>
+  <text x="686" y="508" font-size="9.5" fill="#333">Grafana</text>
+  <rect x="760" y="497" width="12" height="12" rx="2" fill="#8b5cf6"/>
+  <text x="776" y="508" font-size="9.5" fill="#333">OVMS (KServe)</text>
+
+</svg>

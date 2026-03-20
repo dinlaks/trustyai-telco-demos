@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Jupyter
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv
+venv/
+*.egg-info/
+
+# Temp / scratch files
+/tmp/
+*.tmp
+*.bak
+*_backup*
+*_debug*
+
+# Binary / personal files
+*.pptx
+*.pem
+*.key
+*.crt
+
+# Secrets
+*.env
+.env.*
+secrets.yaml
+credentials.json

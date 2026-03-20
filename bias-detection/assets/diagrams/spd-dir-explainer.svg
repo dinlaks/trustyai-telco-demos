@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" font-family="Red Hat Display, RedHatDisplay, Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width="900" height="420" fill="#f8f8f8" rx="8"/>
+
+  <!-- Title -->
+  <text x="450" y="34" text-anchor="middle" font-size="17" font-weight="700" fill="#151515">Fairness Metrics Explained — SPD and DIR</text>
+  <text x="450" y="54" text-anchor="middle" font-size="11" fill="#6a6e73">How TrustyAI measures geographic bias in 5G tier allocation decisions</text>
+
+  <!-- ════════════════════ LEFT: SPD ════════════════════ -->
+
+  <!-- SPD panel background -->
+  <rect x="20" y="68" width="415" height="330" rx="10" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.5"/>
+  <rect x="20" y="68" width="415" height="36" rx="10" fill="#1e40af"/>
+  <rect x="20" y="90" width="415" height="14" fill="#1e40af"/>
+  <text x="227" y="91" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">SPD — Statistical Parity Difference</text>
+  <text x="227" y="106" text-anchor="middle" font-size="10" fill="#bfdbfe">P(Premium | Urban) − P(Premium | Rural)</text>
+
+  <!-- Formula box -->
+  <rect x="40" y="116" width="375" height="36" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+  <text x="227" y="131" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">SPD  =  P(Tier-2 | Urban)  −  P(Tier-2 | Rural)</text>
+  <text x="227" y="146" text-anchor="middle" font-size="10" fill="#3b82f6">Fair threshold:  |SPD| &lt; 0.10     Alert threshold:  |SPD| &gt; 0.15</text>
+
+  <!-- Bar chart axes -->
+  <line x1="70" y1="320" x2="70" y2="165" stroke="#9ca3af" stroke-width="1.5"/>
+  <line x1="70" y1="320" x2="400" y2="320" stroke="#9ca3af" stroke-width="1.5"/>
+
+  <!-- Y-axis labels (0% to 60%) -->
+  <text x="62" y="324" text-anchor="end" font-size="9" fill="#6b7280">0%</text>
+  <text x="62" y="295" text-anchor="end" font-size="9" fill="#6b7280">10%</text>
+  <text x="62" y="268" text-anchor="end" font-size="9" fill="#6b7280">20%</text>
+  <text x="62" y="241" text-anchor="end" font-size="9" fill="#6b7280">30%</text>
+  <text x="62" y="214" text-anchor="end" font-size="9" fill="#6b7280">40%</text>
+  <text x="62" y="187" text-anchor="end" font-size="9" fill="#6b7280">50%</text>
+  <text x="62" y="160" text-anchor="end" font-size="9" fill="#6b7280">60%</text>
+
+  <!-- Gridlines -->
+  <line x1="70" y1="295" x2="400" y2="295" stroke="#f3f4f6" stroke-width="1"/>
+  <line x1="70" y1="268" x2="400" y2="268" stroke="#f3f4f6" stroke-width="1"/>
+  <line x1="70" y1="241" x2="400" y2="241" stroke="#f3f4f6" stroke-width="1"/>
+  <line x1="70" y1="214" x2="400" y2="214" stroke="#f3f4f6" stroke-width="1"/>
+  <line x1="70" y1="187" x2="400" y2="187" stroke="#f3f4f6" stroke-width="1"/>
+  <line x1="70" y1="160" x2="400" y2="160" stroke="#f3f4f6" stroke-width="1"/>
+
+  <!-- Urban bar (54%) — height = 54/60 * 155 = 139.5 → y = 320-140 = 180 -->
+  <rect x="110" y="181" width="80" height="139" rx="4" fill="#0066cc"/>
+  <text x="150" y="175" text-anchor="middle" font-size="13" font-weight="700" fill="#0066cc">54%</text>
+  <text x="150" y="340" text-anchor="middle" font-size="10" fill="#333">Urban</text>
+  <text x="150" y="353" text-anchor="middle" font-size="9" fill="#6b7280">(privileged group)</text>
+
+  <!-- Rural bar (13%) — height = 13/60 * 155 = 33.6 → y = 320-34 = 286 -->
+  <rect x="240" y="287" width="80" height="33" rx="4" fill="#ea580c"/>
+  <text x="280" y="281" text-anchor="middle" font-size="13" font-weight="700" fill="#ea580c">13%</text>
+  <text x="280" y="340" text-anchor="middle" font-size="10" fill="#333">Rural</text>
+  <text x="280" y="353" text-anchor="middle" font-size="9" fill="#6b7280">(unprivileged group)</text>
+
+  <!-- SPD annotation — bracket between bars -->
+  <line x1="192" y1="181" x2="192" y2="287" stroke="#ee0000" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <line x1="188" y1="181" x2="196" y2="181" stroke="#ee0000" stroke-width="1.5"/>
+  <line x1="188" y1="287" x2="196" y2="287" stroke="#ee0000" stroke-width="1.5"/>
+  <!-- Double arrow -->
+  <polygon points="192,190 188,200 196,200" fill="#ee0000"/>
+  <polygon points="192,278 188,268 196,268" fill="#ee0000"/>
+  <rect x="198" y="218" width="38" height="20" rx="4" fill="#fee2e2"/>
+  <text x="217" y="232" text-anchor="middle" font-size="10" font-weight="700" fill="#ee0000">SPD</text>
+
+  <!-- SPD value box -->
+  <rect x="330" y="220" width="72" height="48" rx="8" fill="#fee2e2" stroke="#ee0000" stroke-width="1.5"/>
+  <text x="366" y="238" text-anchor="middle" font-size="10" fill="#ee0000">SPD =</text>
+  <text x="366" y="256" text-anchor="middle" font-size="15" font-weight="700" fill="#ee0000">+0.41</text>
+
+  <!-- Threshold indicator -->
+  <rect x="40" y="364" width="375" height="24" rx="5" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
+  <text x="227" y="380" text-anchor="middle" font-size="10" fill="#dc2626">SPD = +0.41 exceeds alert threshold (±0.15) → PrometheusRule fires</text>
+
+  <!-- ════════════════════ RIGHT: DIR ════════════════════ -->
+
+  <!-- DIR panel background -->
+  <rect x="465" y="68" width="415" height="330" rx="10" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.5"/>
+  <rect x="465" y="68" width="415" height="36" rx="10" fill="#7c3aed"/>
+  <rect x="465" y="90" width="415" height="14" fill="#7c3aed"/>
+  <text x="672" y="91" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">DIR — Disparate Impact Ratio</text>
+  <text x="672" y="106" text-anchor="middle" font-size="10" fill="#ddd6fe">P(Premium | Rural) ÷ P(Premium | Urban)  ("4/5ths rule")</text>
+
+  <!-- Formula box -->
+  <rect x="485" y="116" width="375" height="36" rx="6" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="1"/>
+  <text x="672" y="131" text-anchor="middle" font-size="11" font-weight="700" fill="#7c3aed">DIR  =  P(Tier-2 | Rural)  ÷  P(Tier-2 | Urban)</text>
+  <text x="672" y="146" text-anchor="middle" font-size="10" fill="#8b5cf6">Fair threshold:  0.80 – 1.20     Alert: DIR &lt; 0.80 or DIR &gt; 1.20</text>
+
+  <!-- DIR number line / gauge -->
+  <!-- Axis line -->
+  <line x1="495" y1="245" x2="865" y2="245" stroke="#9ca3af" stroke-width="2"/>
+
+  <!-- Tick marks -->
+  <line x1="495" y1="240" x2="495" y2="250" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="495" y="264" text-anchor="middle" font-size="9" fill="#6b7280">0.0</text>
+  <line x1="532" y1="240" x2="532" y2="250" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="532" y="264" text-anchor="middle" font-size="9" fill="#6b7280">0.1</text>
+  <line x1="643" y1="240" x2="643" y2="252" stroke="#16a34a" stroke-width="2"/>
+  <text x="643" y="264" text-anchor="middle" font-size="9" fill="#16a34a" font-weight="700">0.80</text>
+  <line x1="680" y1="238" x2="680" y2="254" stroke="#1e40af" stroke-width="2.5"/>
+  <text x="680" y="264" text-anchor="middle" font-size="9" fill="#1e40af" font-weight="700">1.0</text>
+  <line x1="717" y1="240" x2="717" y2="252" stroke="#16a34a" stroke-width="2"/>
+  <text x="717" y="264" text-anchor="middle" font-size="9" fill="#16a34a" font-weight="700">1.20</text>
+  <line x1="865" y1="240" x2="865" y2="250" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="865" y="264" text-anchor="middle" font-size="9" fill="#6b7280">2.0</text>
+
+  <!-- Color zones -->
+  <rect x="495" y="225" width="148" height="20" rx="0" fill="#fee2e2" opacity="0.6"/>
+  <rect x="643" y="225" width="74" height="20" fill="#dcfce7" opacity="0.7"/>
+  <rect x="717" y="225" width="148" height="20" rx="0" fill="#fee2e2" opacity="0.6"/>
+  <text x="569" y="219" text-anchor="middle" font-size="9" fill="#dc2626" font-weight="600">Alert zone</text>
+  <text x="680" y="219" text-anchor="middle" font-size="9" fill="#16a34a" font-weight="600">Fair zone</text>
+  <text x="791" y="219" text-anchor="middle" font-size="9" fill="#dc2626" font-weight="600">Alert zone</text>
+
+  <!-- Current biased value marker (0.24) -->
+  <!-- 0.24 on scale 0-2: position = 495 + 0.24/2 * 370 = 495 + 44.4 = 539 -->
+  <line x1="539" y1="200" x2="539" y2="248" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="4,2"/>
+  <polygon points="539,248 533,238 545,238" fill="#ea580c"/>
+  <rect x="498" y="176" width="82" height="30" rx="5" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="539" y="190" text-anchor="middle" font-size="9" fill="#ea580c">Biased model</text>
+  <text x="539" y="204" text-anchor="middle" font-size="11" font-weight="700" fill="#ea580c">DIR = 0.24</text>
+
+  <!-- Fair value marker (0.95) -->
+  <!-- 0.95 on scale 0-2: position = 495 + 0.95/2 * 370 = 495 + 175.75 = 671 -->
+  <line x1="671" y1="200" x2="671" y2="248" stroke="#16a34a" stroke-width="2.5" stroke-dasharray="4,2"/>
+  <polygon points="671,248 665,238 677,238" fill="#16a34a"/>
+  <rect x="626" y="176" width="90" height="30" rx="5" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="671" y="190" text-anchor="middle" font-size="9" fill="#16a34a">Fair model</text>
+  <text x="671" y="204" text-anchor="middle" font-size="11" font-weight="700" fill="#16a34a">DIR = 0.95</text>
+
+  <!-- Interpretation boxes -->
+  <rect x="485" y="280" width="375" height="100" rx="8" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="672" y="303" text-anchor="middle" font-size="10" font-weight="700" fill="#333">What DIR means</text>
+
+  <rect x="495" y="312" width="168" height="58" rx="6" fill="#fff7ed" stroke="#fdba74" stroke-width="1"/>
+  <text x="579" y="330" text-anchor="middle" font-size="10" font-weight="700" fill="#ea580c">DIR = 0.24 (biased)</text>
+  <text x="579" y="346" text-anchor="middle" font-size="9.5" fill="#555">Rural customers are only</text>
+  <text x="579" y="360" text-anchor="middle" font-size="9.5" fill="#555">24% as likely to get</text>
+  <text x="579" y="374" text-anchor="middle" font-size="9.5" fill="#ea580c">Premium as Urban customers</text>
+
+  <rect x="675" y="312" width="175" height="58" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="762" y="330" text-anchor="middle" font-size="10" font-weight="700" fill="#16a34a">DIR = 0.95 (fair)</text>
+  <text x="762" y="346" text-anchor="middle" font-size="9.5" fill="#555">Rural customers are 95%</text>
+  <text x="762" y="360" text-anchor="middle" font-size="9.5" fill="#555">as likely to get Premium</text>
+  <text x="762" y="374" text-anchor="middle" font-size="9.5" fill="#16a34a">as Urban customers</text>
+
+  <!-- Threshold indicator right panel -->
+  <rect x="485" y="364" width="375" height="24" rx="5" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
+  <text x="672" y="380" text-anchor="middle" font-size="10" fill="#dc2626">DIR = 0.24 violates 4/5ths rule (&lt; 0.80) → PrometheusRule fires</text>
+
+</svg>
