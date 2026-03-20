@@ -182,7 +182,7 @@ In Red Hat OpenShift AI:
 | [Architecture](docs/architecture.md) | Engineers, architects | Technical deep-dive, component interactions |
 | [Demo Walkthrough](docs/demo-walkthrough.md) | Demo presenters, SAs | Step-by-step presenter script |
 | [Prerequisites](docs/prerequisites.md) | Engineers | Complete setup guide before running demo |
-| [Bias Use Case Explainer](BIAS-USECASE-EXPLAINER.md) | All audiences | SPD/DIR explained, model internals, dataset details |
+
 
 ---
 
