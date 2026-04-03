@@ -1,0 +1,31 @@
+# OpenShift Serverless Operator
+# Required as an operator dependency by RHOAI 3.3 during installation.
+# Even when KServe uses RawDeployment mode (no Knative serving), the
+# Serverless operator must be present on the cluster.
+# Apply with: oc apply -f shared/operators/wave-0/04-serverless-subscription.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-serverless
+  labels:
+    openshift.io/cluster-monitoring: "true"
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: serverless-operator-group
+  namespace: openshift-serverless
+spec: {}
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: serverless-operator
+  namespace: openshift-serverless
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: serverless-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

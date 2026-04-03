@@ -29,8 +29,9 @@ venv/
 *.key
 *.crt
 
-# Secrets
+# Secrets / local env config
 *.env
 .env.*
 secrets.yaml
 credentials.json
+shared/env.sh

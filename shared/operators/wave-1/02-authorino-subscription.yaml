@@ -1,0 +1,16 @@
+# Authorino Operator
+# Provides token-based authentication for KServe model serving endpoints.
+# Required for securing InferenceService routes in RHOAI 3.x.
+# Apply with: oc apply -f shared/operators/wave-1/02-authorino-subscription.yaml
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: authorino-operator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: authorino-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

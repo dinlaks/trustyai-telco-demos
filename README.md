@@ -2,7 +2,7 @@
 
 End-to-end responsible AI demos for the telecom industry built on **Red Hat OpenShift AI** and **TrustyAI**. Each demo covers a distinct AI governance use case — bias detection, drift monitoring, explainability, and guardrails — using realistic 5G and network operations scenarios.
 
-> Validated on: OpenShift 4.20 | RHOAI 2.25 and 3.3
+> Validated on: OpenShift 4.20, 4.21+ | RHOAI 2.25 and 3.3
 
 ---
 
@@ -40,9 +40,17 @@ trustyai-telco-demos/
 ├── .gitignore
 │
 ├── shared/                          # Common setup scripts (used by all demos)
-│   ├── cluster-admin-setup.sh       # Cluster-admin pre-requisites (run once)
+│   ├── cluster-admin-setup.sh       # Cluster-admin RBAC pre-requisites (run once)
 │   ├── patch-kserve.py              # KServe CA bundle patch (run once)
-│   └── user-workload-monitoring.yaml
+│   ├── user-workload-monitoring.yaml
+│   ├── preflight.sh                 # Validates all pre-requisites before running the notebook
+│   ├── env.sh.example               # Environment variable template (copy to env.sh, gitignored)
+│   ├── teardown.sh                  # Removes all demo resources (--confirm required)
+│   └── operators/                   # Operator subscriptions — install before any demo
+│       ├── README.md                # Ordered install instructions (start here)
+│       ├── wave-0/                  # Foundation operators (NFD, cert-manager, OSSM 3, Serverless, GPU)
+│       ├── wave-1/                  # RHOAI 3.3 + Authorino
+│       └── post-install/            # DataScienceCluster CR + user workload monitoring
 │
 ├── bias-detection/                  # Demo 1 — Geographic bias in 5G slice allocation
 │   ├── README.md
@@ -60,17 +68,56 @@ trustyai-telco-demos/
 
 ## Shared Setup
 
-All demos share a common cluster-admin setup. Run these once before any demo:
+All demos share a common cluster setup. Follow these steps in order before running any demo notebook.
+
+### Step 1 — Install Operators (cluster-admin, once per cluster)
+
+Requires a running **OpenShift 4.20 / 4.21+** cluster with `cluster-admin` access.
 
 ```bash
-# 1. Cluster-admin pre-requisites
+# See shared/operators/README.md for full instructions and wait/verify commands
+oc apply -f shared/operators/wave-0/00-namespaces.yaml
+oc apply -f shared/operators/wave-0/01-nfd-subscription.yaml
+oc apply -f shared/operators/wave-0/02-certmanager-subscription.yaml
+oc apply -f shared/operators/wave-0/03-servicemesh-subscription.yaml   # OSSM 3.2.2
+oc apply -f shared/operators/wave-0/04-serverless-subscription.yaml
+oc apply -f shared/operators/wave-0/05-gpu-operator-subscription.yaml  # optional
+
+# Wait for Wave 0 operators to reach Succeeded before continuing
+
+oc apply -f shared/operators/wave-1/01-rhoai-subscription.yaml
+oc apply -f shared/operators/wave-1/02-authorino-subscription.yaml
+
+# Wait for RHOAI operator pod to be Running before continuing
+
+oc apply -f shared/operators/post-install/01-datasciencecluster.yaml
+oc apply -f shared/operators/post-install/02-user-workload-monitoring.yaml
+```
+
+> Full install order, wait commands, and verification steps: [shared/operators/README.md](shared/operators/README.md)
+
+### Step 2 — Cluster-Admin RBAC and KServe Patch (once per cluster)
+
+```bash
+# RBAC grants for the demo workbench service account
 bash shared/cluster-admin-setup.sh
 
-# 2. KServe CA bundle patch
+# KServe CA bundle patch — allows KServe agent to verify TrustyAI TLS
 python3 shared/patch-kserve.py
+```
 
-# 3. Enable user workload monitoring (for Prometheus/Grafana)
-oc apply -f shared/user-workload-monitoring.yaml
+### Step 3 — Validate Pre-Requisites
+
+```bash
+# Checks operators, DataScienceCluster, RBAC, CA bundle patch, and image reachability
+bash shared/preflight.sh
+```
+
+### Teardown (after demo)
+
+```bash
+# Removes demo namespace, Grafana dashboard, and RBAC grants — leaves RHOAI intact
+bash shared/teardown.sh --confirm
 ```
 
 See each demo's `docs/prerequisites.md` for demo-specific setup.
@@ -81,6 +128,7 @@ See each demo's `docs/prerequisites.md` for demo-specific setup.
 
 | Resource | Link |
 |----------|------|
+| Operator Install Guide | [shared/operators/README.md](shared/operators/README.md) |
 | Bias Detection Demo | [bias-detection/README.md](bias-detection/README.md) |
 | Business Use Case | [bias-detection/docs/business-use-case.md](bias-detection/docs/business-use-case.md) |
 | TrustyAI Value Proposition | [bias-detection/docs/trustyai-value-proposition.md](bias-detection/docs/trustyai-value-proposition.md) |

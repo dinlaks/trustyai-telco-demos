@@ -1,0 +1,54 @@
+# DataScienceCluster CR
+# Activates RHOAI components. Apply AFTER the rhods-operator pod is Running.
+# This configuration enables TrustyAI + KServe in RawDeployment mode.
+# Service Mesh and Serverless operators are installed (Wave 0) but set to
+# Removed here — they are operator dependencies only, not used for inference.
+# Apply with: oc apply -f shared/operators/post-install/01-datasciencecluster.yaml
+---
+apiVersion: datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  name: default
+  namespace: redhat-ods-operator
+spec:
+  components:
+    dashboard:
+      managementState: Managed
+
+    kserve:
+      managementState: Managed
+      serving:
+        # RawDeployment mode: Knative/Serverless is NOT used for inference.
+        # The Serverless operator must be installed but serving is disabled here.
+        managementState: Removed
+        ingressGateway:
+          domain: ""
+      defaultDeploymentMode: RawDeployment
+
+    trustyai:
+      managementState: Managed
+
+    workbenches:
+      managementState: Managed
+
+    datasciencepipelines:
+      managementState: Managed
+
+    modelmeshserving:
+      # ModelMesh is deprecated in RHOAI 3.x — disabled
+      managementState: Removed
+
+    codeflare:
+      managementState: Managed
+
+    ray:
+      managementState: Managed
+
+    kueue:
+      managementState: Managed
+
+    trainingoperator:
+      managementState: Managed
+
+    modelregistry:
+      managementState: Managed

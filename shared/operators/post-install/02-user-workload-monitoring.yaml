@@ -1,0 +1,13 @@
+# User Workload Monitoring
+# Enables Prometheus to scrape metrics from user namespaces (e.g. telco-bias-demo).
+# Required for TrustyAI metrics, Pushgateway scraping, and Grafana dashboards.
+# Apply with: oc apply -f shared/operators/post-install/02-user-workload-monitoring.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    enableUserWorkload: true

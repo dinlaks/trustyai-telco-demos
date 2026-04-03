@@ -1,0 +1,25 @@
+# NVIDIA GPU Operator (Optional)
+# Required only if the cluster has GPU worker nodes.
+# Skip this file if running a CPU-only demo environment.
+# Apply with: oc apply -f shared/operators/wave-0/05-gpu-operator-subscription.yaml
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: nvidia-gpu-operator-group
+  namespace: nvidia-gpu-operator
+spec:
+  targetNamespaces:
+  - nvidia-gpu-operator
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: gpu-operator-certified
+  namespace: nvidia-gpu-operator
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: gpu-operator-certified
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
