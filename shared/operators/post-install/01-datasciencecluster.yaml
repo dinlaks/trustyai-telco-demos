@@ -1,8 +1,20 @@
-# DataScienceCluster CR
-# Activates RHOAI components. Apply AFTER the rhods-operator pod is Running.
-# This configuration enables TrustyAI + KServe in RawDeployment mode.
-# Service Mesh and Serverless operators are installed (Wave 0) but set to
-# Removed here — they are operator dependencies only, not used for inference.
+# DataScienceCluster CR — RHOAI 3.3
+# Enables only the components required for the TrustyAI Telco Bias demo.
+# Apply AFTER the rhods-operator pod is Running in redhat-ods-operator.
+#
+# Components enabled:
+#   dashboard           — RHOAI web UI (project/workbench management)
+#   workbenches         — JupyterLab notebook environment
+#   kserve              — Model serving in RawDeployment mode (no Istio/Knative)
+#   trustyai            — Bias/fairness metrics, SPD/DIR computation
+#   datasciencepipelines— KFP-based retrain pipeline (notebook Cell 11a)
+#
+# Components explicitly disabled:
+#   modelmeshserving    — Deprecated in RHOAI 3.x; not used in this demo
+#   codeflare/ray/kueue — Distributed training stack; not needed
+#   trainingoperator    — Fine-tuning operator; not needed
+#   modelregistry       — Model registry service; not needed
+#
 # Apply with: oc apply -f shared/operators/post-install/01-datasciencecluster.yaml
 ---
 apiVersion: datasciencecluster.opendatahub.io/v1
@@ -12,43 +24,50 @@ metadata:
   namespace: redhat-ods-operator
 spec:
   components:
+
+    # ── Required: RHOAI UI ───────────────────────────────────────────────
     dashboard:
       managementState: Managed
 
-    kserve:
-      managementState: Managed
-      serving:
-        # RawDeployment mode: Knative/Serverless is NOT used for inference.
-        # The Serverless operator must be installed but serving is disabled here.
-        managementState: Removed
-        ingressGateway:
-          domain: ""
-      defaultDeploymentMode: RawDeployment
-
-    trustyai:
-      managementState: Managed
-
+    # ── Required: Notebook workbench (where the demo notebook runs) ──────
     workbenches:
       managementState: Managed
 
+    # ── Required: Model serving (RawDeployment — no Istio/Knative needed) ─
+    kserve:
+      managementState: Managed
+      # serving.managementState: Removed disables Knative Serving entirely.
+      # The Serverless operator (Wave 0) satisfies the OLM dependency check
+      # but is not actively used for inference in RawDeployment mode.
+      serving:
+        managementState: Removed
+      defaultDeploymentMode: RawDeployment
+
+    # ── Required: TrustyAI bias/fairness observability ───────────────────
+    trustyai:
+      managementState: Managed
+
+    # ── Optional: Data Science Pipelines (KFP retrain — notebook Cell 11a) ─
+    # Cell 11b performs local retrain without KFP. Set to Removed if you
+    # want a lighter cluster footprint and will only use Cell 11b.
     datasciencepipelines:
       managementState: Managed
 
+    # ── Disabled: not used by this demo ─────────────────────────────────
     modelmeshserving:
-      # ModelMesh is deprecated in RHOAI 3.x — disabled
       managementState: Removed
 
     codeflare:
-      managementState: Managed
+      managementState: Removed
 
     ray:
-      managementState: Managed
+      managementState: Removed
 
     kueue:
-      managementState: Managed
+      managementState: Removed
 
     trainingoperator:
-      managementState: Managed
+      managementState: Removed
 
     modelregistry:
-      managementState: Managed
+      managementState: Removed
