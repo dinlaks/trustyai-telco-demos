@@ -3,7 +3,13 @@
 # even when KServe is configured in RawDeployment mode (no Istio sidecar injection).
 # The operator must be present; the mesh itself is not actively used in this demo.
 # NOTE: RHOAI 3.3 requires OSSM 3.x — NOT compatible with OSSM 2.x.
-# Apply with: oc apply -f shared/operators/wave-0/03-servicemesh-subscription.yaml
+#
+# IMPORTANT: The 'stable' channel delivers OSSM 2.x on most clusters.
+# Use deploy-prereqs.sh which auto-discovers the 3.x channel, OR find the
+# correct channel for your cluster first:
+#   oc get packagemanifests servicemeshoperator -n openshift-marketplace \
+#     -o jsonpath='{.status.channels[*].name}'
+# Then set the channel below to whichever channel has a currentCSV of v3.x.
 ---
 # Service Mesh 3 installs into the global openshift-operators namespace (all-namespace mode)
 apiVersion: operators.coreos.com/v1alpha1
@@ -12,7 +18,7 @@ metadata:
   name: servicemeshoperator
   namespace: openshift-operators
 spec:
-  channel: stable
+  channel: stable-v3    # replace with the 3.x channel discovered from your catalog
   installPlanApproval: Automatic
   name: servicemeshoperator
   source: redhat-operators

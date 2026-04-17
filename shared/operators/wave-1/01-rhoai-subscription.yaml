@@ -16,9 +16,8 @@ kind: OperatorGroup
 metadata:
   name: rhods-operator-group
   namespace: redhat-ods-operator
-spec:
-  targetNamespaces:
-  - redhat-ods-operator
+# rhods-operator supports AllNamespaces mode only — omit targetNamespaces
+spec: {}
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription

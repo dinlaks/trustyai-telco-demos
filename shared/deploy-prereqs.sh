@@ -65,17 +65,86 @@ csv_succeeded() {
   [[ "$phase" == "Succeeded" ]]
 }
 
-# Apply an operator subscription file only if its CSV is not already Succeeded.
-# Skipping prevents OperatorGroup conflicts in namespaces pre-populated by the
-# cluster provider (e.g. RHDP demo environments).
+# Returns true if a Subscription matching pattern already exists in namespace.
+# Used to avoid re-applying YAMLs that would create duplicate OperatorGroups
+# when a previous install left the CSV in a non-Succeeded state (e.g. Unknown).
+subscription_exists() {
+  local ns="$1" pattern="$2"
+  oc get subscription -n "$ns" 2>/dev/null | grep -qi "$pattern"
+}
+
+# Apply an operator subscription file only when the operator is not already
+# present. Skips if CSV is Succeeded OR if a Subscription already exists —
+# the latter prevents duplicate OperatorGroup conflicts on re-runs.
 apply_if_needed() {
   local ns="$1" pattern="$2" label="$3" file="$4"
   if csv_succeeded "$ns" "$pattern"; then
     ok "${label} already installed — skipping"
+  elif subscription_exists "$ns" "$pattern"; then
+    warn "${label} subscription already exists (CSV not yet Succeeded) — skipping re-apply"
   else
     info "Applying ${label} subscription..."
     oc apply -f "$file"
   fi
+}
+
+# Install Service Mesh 3.x by dynamically discovering the 3.x channel from
+# the packagemanifest. The 'stable' channel of servicemeshoperator delivers
+# OSSM 2.x — we must find a channel whose currentCSV contains '.v3.'.
+install_servicemesh_3() {
+  # Already installed and it's 3.x — done.
+  if csv_succeeded "openshift-operators" "servicemesh"; then
+    local csv_name
+    csv_name=$(oc get csv -n openshift-operators 2>/dev/null \
+      | grep -i servicemesh | awk '{print $1}' | head -1 || true)
+    if echo "$csv_name" | grep -qE "\.v3\."; then
+      ok "Service Mesh 3.x already installed — skipping (${csv_name})"
+      return 0
+    fi
+    warn "Service Mesh is installed but is 2.x: ${csv_name}"
+    warn "Attempting to install OSSM 3.x subscription alongside it..."
+  fi
+
+  # Subscription exists but CSV not Succeeded — avoid duplicate OperatorGroup.
+  if subscription_exists "openshift-operators" "servicemesh"; then
+    warn "Service Mesh subscription already exists — skipping re-apply"
+    return 0
+  fi
+
+  # Discover the OSSM 3.x channel from the packagemanifest.
+  info "Discovering Service Mesh 3.x channel from packagemanifest..."
+  local ossm3_channel
+  ossm3_channel=$(oc get packagemanifests servicemeshoperator \
+    -n openshift-marketplace -o json 2>/dev/null \
+    | python3 -c '
+import sys, json
+d = json.load(sys.stdin)
+for ch in d.get("status", {}).get("channels", []):
+    if ".v3." in ch.get("currentCSV", ""):
+        print(ch["name"])
+        break
+' 2>/dev/null || echo "")
+
+  if [[ -z "$ossm3_channel" ]]; then
+    warn "No OSSM 3.x channel found in the catalog for this cluster."
+    warn "Install Service Mesh 3.x manually from OperatorHub and re-run."
+    return 0
+  fi
+
+  info "Found OSSM 3.x channel: ${ossm3_channel} — applying subscription..."
+  oc apply -f - <<EOF
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: servicemeshoperator
+  namespace: openshift-operators
+spec:
+  channel: ${ossm3_channel}
+  installPlanApproval: Automatic
+  name: servicemeshoperator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+EOF
 }
 
 # Wait for ALL CSVs in a namespace to reach Succeeded.
@@ -160,8 +229,7 @@ apply_if_needed "openshift-nfd"         "nfd"          "Node Feature Discovery" 
 apply_if_needed "cert-manager-operator" "cert-manager" "cert-manager" \
   shared/operators/wave-0/02-certmanager-subscription.yaml
 
-apply_if_needed "openshift-operators"   "servicemesh"  "OpenShift Service Mesh" \
-  shared/operators/wave-0/03-servicemesh-subscription.yaml
+install_servicemesh_3
 
 apply_if_needed "openshift-serverless"  "serverless"   "OpenShift Serverless" \
   shared/operators/wave-0/04-serverless-subscription.yaml
