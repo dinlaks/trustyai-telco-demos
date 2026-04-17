@@ -57,6 +57,27 @@ ok()     { echo -e "    ${GREEN}OK${RESET}  $*"; }
 warn()   { echo -e "    ${YELLOW}WARN${RESET} $*"; }
 die()    { echo -e "\n    ${RED}ERROR${RESET} $*" >&2; exit 1; }
 
+# Returns true if a CSV matching pattern in namespace is already Succeeded.
+csv_succeeded() {
+  local ns="$1" pattern="$2"
+  local phase
+  phase=$(oc get csv -n "$ns" 2>/dev/null | grep -i "$pattern" | awk '{print $NF}' | head -1 || true)
+  [[ "$phase" == "Succeeded" ]]
+}
+
+# Apply an operator subscription file only if its CSV is not already Succeeded.
+# Skipping prevents OperatorGroup conflicts in namespaces pre-populated by the
+# cluster provider (e.g. RHDP demo environments).
+apply_if_needed() {
+  local ns="$1" pattern="$2" label="$3" file="$4"
+  if csv_succeeded "$ns" "$pattern"; then
+    ok "${label} already installed — skipping"
+  else
+    info "Applying ${label} subscription..."
+    oc apply -f "$file"
+  fi
+}
+
 # Wait for ALL CSVs in a namespace to reach Succeeded.
 wait_for_csv() {
   local ns="$1" label="$2" timeout="${3:-$WAVE_TIMEOUT}"
@@ -133,24 +154,28 @@ header "Step 1 — Wave 0: Foundation Operators"
 info "Applying namespace manifests..."
 oc apply -f shared/operators/wave-0/00-namespaces.yaml
 
-info "Applying Node Feature Discovery subscription..."
-oc apply -f shared/operators/wave-0/01-nfd-subscription.yaml
+apply_if_needed "openshift-nfd"         "nfd"          "Node Feature Discovery" \
+  shared/operators/wave-0/01-nfd-subscription.yaml
 
-info "Applying cert-manager subscription..."
-oc apply -f shared/operators/wave-0/02-certmanager-subscription.yaml
+apply_if_needed "cert-manager-operator" "cert-manager" "cert-manager" \
+  shared/operators/wave-0/02-certmanager-subscription.yaml
 
-info "Applying OpenShift Service Mesh subscription..."
-oc apply -f shared/operators/wave-0/03-servicemesh-subscription.yaml
+apply_if_needed "openshift-operators"   "servicemesh"  "OpenShift Service Mesh" \
+  shared/operators/wave-0/03-servicemesh-subscription.yaml
 
-info "Applying OpenShift Serverless subscription..."
-oc apply -f shared/operators/wave-0/04-serverless-subscription.yaml
+apply_if_needed "openshift-serverless"  "serverless"   "OpenShift Serverless" \
+  shared/operators/wave-0/04-serverless-subscription.yaml
 
 GPU_NODES=$(oc get nodes \
   -o jsonpath='{.items[*].status.capacity.nvidia\.com/gpu}' 2>/dev/null \
   | tr ' ' '\n' | grep -c '[1-9]' || echo "0")
 if [[ "${GPU_NODES}" -gt 0 ]]; then
-  info "GPU nodes detected — applying NVIDIA GPU operator subscription..."
-  oc apply -f shared/operators/wave-0/05-gpu-operator-subscription.yaml
+  if csv_succeeded "nvidia-gpu-operator" "gpu"; then
+    ok "NVIDIA GPU operator already installed — skipping"
+  else
+    info "GPU nodes detected — applying NVIDIA GPU operator subscription..."
+    oc apply -f shared/operators/wave-0/05-gpu-operator-subscription.yaml
+  fi
 else
   warn "No GPU nodes detected — skipping GPU operator (optional)"
 fi
@@ -172,11 +197,11 @@ ok "Wave 0 — all foundation operators healthy"
 # ---------------------------------------------------------------------------
 header "Step 3 — Wave 1: RHOAI + Authorino"
 
-info "Applying RHOAI subscription..."
-oc apply -f shared/operators/wave-1/01-rhoai-subscription.yaml
+apply_if_needed "redhat-ods-operator" "rhods"     "RHOAI"     \
+  shared/operators/wave-1/01-rhoai-subscription.yaml
 
-info "Applying Authorino subscription..."
-oc apply -f shared/operators/wave-1/02-authorino-subscription.yaml
+apply_if_needed "openshift-operators" "authorino" "Authorino" \
+  shared/operators/wave-1/02-authorino-subscription.yaml
 
 # ---------------------------------------------------------------------------
 # Step 4 — Wait: Wave 1 CSVs healthy
