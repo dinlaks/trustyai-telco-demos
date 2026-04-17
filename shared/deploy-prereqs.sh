@@ -93,21 +93,52 @@ apply_if_needed() {
 SERVICEMESH_INSTALLED=false
 
 # Install cert-manager.
-# Dynamically discovers the latest stable-v1.x channel from the packagemanifest
-# so the script works across cert-manager minor releases (1.14, 1.18, etc.).
-# If an OperatorGroup already exists in the namespace, applies the Subscription
-# only — avoids the "multiple operatorgroups" OLM error.
+# Root cause of Unknown CSV: multiple OperatorGroups in the namespace —
+# OLM cannot pick one and leaves the CSV in Unknown indefinitely.
+# This function actively removes duplicate OGs so OLM can self-heal,
+# then creates the Subscription (with dynamically discovered channel)
+# only if it does not already exist.
 install_cert_manager() {
-  if csv_succeeded "cert-manager-operator" "cert-manager"; then
-    ok "cert-manager already installed — skipping"
-    return 0
+  # Accept Succeeded in any namespace cert-manager may have been installed in.
+  for ns in cert-manager-operator cert-manager openshift-operators; do
+    if csv_succeeded "$ns" "cert-manager"; then
+      ok "cert-manager already Succeeded in '${ns}' — skipping"
+      return 0
+    fi
+  done
+
+  # ── Fix duplicate OperatorGroups ────────────────────────────────────────
+  # OLM sets CSV to Unknown when a namespace has more than one OG.
+  # Delete our copy first; if multiple remain, delete all and start clean.
+  local og_count
+  og_count=$(oc get operatorgroup -n cert-manager-operator \
+    --no-headers 2>/dev/null | wc -l | xargs)
+
+  if [[ "${og_count:-0}" -gt 1 ]]; then
+    warn "Found ${og_count} OperatorGroups in cert-manager-operator — removing duplicates..."
+    oc delete operatorgroup cert-manager-operator-group \
+      -n cert-manager-operator 2>/dev/null \
+      && info "  Deleted: cert-manager-operator-group" || true
+
+    # Recount
+    og_count=$(oc get operatorgroup -n cert-manager-operator \
+      --no-headers 2>/dev/null | wc -l | xargs)
+
+    if [[ "${og_count:-0}" -gt 1 ]]; then
+      warn "  Still ${og_count} OGs present — deleting all and recreating one..."
+      oc delete operatorgroup --all -n cert-manager-operator 2>/dev/null || true
+      og_count=0
+    fi
+    ok "OperatorGroup count fixed — OLM will now reconcile the CSV"
   fi
+
+  # ── If subscription already exists, OLM self-heals once OG is clean ────
   if subscription_exists "cert-manager-operator" "cert-manager"; then
-    warn "cert-manager subscription exists (CSV not yet Succeeded) — skipping re-apply"
+    info "cert-manager Subscription exists — OLM will move CSV to Succeeded now that OG is fixed"
     return 0
   fi
 
-  # Find the latest stable-v1.x channel (e.g. stable-v1.18 > stable-v1.14).
+  # ── Discover latest stable-v1.x channel ─────────────────────────────────
   info "Discovering latest cert-manager channel..."
   local channel
   channel=$(oc get packagemanifests openshift-cert-manager-operator \
@@ -120,14 +151,14 @@ install_cert_manager() {
       -n openshift-marketplace \
       -o jsonpath='{.status.defaultChannel}' 2>/dev/null || echo "stable-v1")
   fi
-  info "  Using cert-manager channel: ${channel}"
+  info "  Channel: ${channel}"
 
-  local og_count
+  # Recheck OG count (may have been reset above)
   og_count=$(oc get operatorgroup -n cert-manager-operator \
     --no-headers 2>/dev/null | wc -l | xargs)
 
   if [[ "${og_count:-0}" -gt 0 ]]; then
-    info "OperatorGroup already exists — applying cert-manager Subscription only..."
+    info "OperatorGroup present — applying Subscription only..."
     oc apply -f - <<EOF
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
@@ -142,7 +173,7 @@ spec:
   sourceNamespace: openshift-marketplace
 EOF
   else
-    info "Applying cert-manager OperatorGroup + Subscription..."
+    info "No OperatorGroup — creating OperatorGroup + Subscription..."
     oc apply -f - <<EOF
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
