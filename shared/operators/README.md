@@ -1,5 +1,7 @@
 # Operator Pre-Requisites — RHOAI 3.3
 
+> **Prefer the automated path?** `bash shared/deploy-prereqs.sh` runs all of the steps below end-to-end — operators, DataScienceCluster, workbench creation, RBAC, and KServe patch — with health checks between each wave. Use this manual guide when you need per-step control or to troubleshoot a specific wave.
+
 Apply these manifests **once per cluster** before running any demo notebook.
 All steps require `cluster-admin` privileges.
 

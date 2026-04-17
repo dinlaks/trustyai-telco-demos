@@ -40,8 +40,9 @@ trustyai-telco-demos/
 ├── .gitignore
 │
 ├── shared/                          # Common setup scripts (used by all demos)
-│   ├── cluster-admin-setup.sh       # Cluster-admin RBAC pre-requisites (run once)
-│   ├── patch-kserve.py              # KServe CA bundle patch (run once)
+│   ├── deploy-prereqs.sh            # ★ Single script — installs everything end-to-end (start here)
+│   ├── cluster-admin-setup.sh       # Cluster-admin RBAC pre-requisites (called by deploy-prereqs.sh)
+│   ├── patch-kserve.py              # KServe CA bundle patch (called by deploy-prereqs.sh)
 │   ├── user-workload-monitoring.yaml
 │   ├── preflight.sh                 # Validates all pre-requisites before running the notebook
 │   ├── env.sh.example               # Environment variable template (copy to env.sh, gitignored)
@@ -68,48 +69,42 @@ trustyai-telco-demos/
 
 ## Shared Setup
 
-All demos share a common cluster setup. Follow these steps in order before running any demo notebook.
+All demos share a common cluster setup. Run the steps below **once per cluster** as `cluster-admin` before opening any demo notebook.
 
-### Step 1 — Install Operators (cluster-admin, once per cluster)
+Requires a running **OpenShift 4.20 / 4.21+** cluster and `oc` CLI logged in as `cluster-admin`.
 
-Requires a running **OpenShift 4.20 / 4.21+** cluster with `cluster-admin` access.
+### Option A — Single script (recommended)
+
+`deploy-prereqs.sh` orchestrates the full setup end-to-end: operator installation, RHOAI activation, workbench creation, RBAC grants, KServe CA patch, and final validation.
 
 ```bash
-# See shared/operators/README.md for full instructions and wait/verify commands
-oc apply -f shared/operators/wave-0/00-namespaces.yaml
-oc apply -f shared/operators/wave-0/01-nfd-subscription.yaml
-oc apply -f shared/operators/wave-0/02-certmanager-subscription.yaml
-oc apply -f shared/operators/wave-0/03-servicemesh-subscription.yaml   # OSSM 3.2.2
-oc apply -f shared/operators/wave-0/04-serverless-subscription.yaml
-oc apply -f shared/operators/wave-0/05-gpu-operator-subscription.yaml  # optional
-
-# Wait for Wave 0 operators to reach Succeeded before continuing
-
-oc apply -f shared/operators/wave-1/01-rhoai-subscription.yaml
-oc apply -f shared/operators/wave-1/02-authorino-subscription.yaml
-
-# Wait for RHOAI operator pod to be Running before continuing
-
-oc apply -f shared/operators/post-install/01-datasciencecluster.yaml
-oc apply -f shared/operators/post-install/02-user-workload-monitoring.yaml
+bash shared/deploy-prereqs.sh
 ```
 
-> Full install order, wait commands, and verification steps: [shared/operators/README.md](shared/operators/README.md)
+What it does:
 
-### Step 2 — Cluster-Admin RBAC and KServe Patch (once per cluster)
+| Step | Action |
+|------|--------|
+| 1–2 | Wave 0 operators — NFD, cert-manager, Service Mesh, Serverless (waits for each to reach `Succeeded`) |
+| 3–4 | Wave 1 operators — RHOAI + Authorino (waits for `Succeeded`) |
+| 5–6 | DataScienceCluster CR + user workload monitoring (waits for `Ready`) |
+| 7–8 | Creates `rhoai-demo` Data Science Project + `telco-wb` workbench (PVC + Notebook CR) |
+| 9   | Waits for workbench pod to reach `Running` |
+| 10  | RBAC grants — `cluster-admin-setup.sh` |
+| 11  | KServe CA bundle patch — `patch-kserve.py` |
+| 12  | Runs `preflight.sh` and prints next steps |
+
+> **Note:** All `oc apply` calls are idempotent. Safe to re-run if the cluster already has operators installed (e.g. a Demo Platform environment with RHOAI pre-provisioned).
+
+### Option B — Manual step-by-step
+
+For environments where you need more control over each wave, apply the manifests individually and verify health between waves. See [shared/operators/README.md](shared/operators/README.md) for the full manual sequence.
+
+### Validate Pre-Requisites
+
+To check the cluster state at any point without re-running setup:
 
 ```bash
-# RBAC grants for the demo workbench service account
-bash shared/cluster-admin-setup.sh
-
-# KServe CA bundle patch — allows KServe agent to verify TrustyAI TLS
-python3 shared/patch-kserve.py
-```
-
-### Step 3 — Validate Pre-Requisites
-
-```bash
-# Checks operators, DataScienceCluster, RBAC, CA bundle patch, and image reachability
 bash shared/preflight.sh
 ```
 
@@ -128,7 +123,8 @@ See each demo's `docs/prerequisites.md` for demo-specific setup.
 
 | Resource | Link |
 |----------|------|
-| Operator Install Guide | [shared/operators/README.md](shared/operators/README.md) |
+| Full Pre-Req Setup Script | [shared/deploy-prereqs.sh](shared/deploy-prereqs.sh) |
+| Manual Operator Install Guide | [shared/operators/README.md](shared/operators/README.md) |
 | Bias Detection Demo | [bias-detection/README.md](bias-detection/README.md) |
 | Business Use Case | [bias-detection/docs/business-use-case.md](bias-detection/docs/business-use-case.md) |
 | TrustyAI Value Proposition | [bias-detection/docs/trustyai-value-proposition.md](bias-detection/docs/trustyai-value-proposition.md) |
