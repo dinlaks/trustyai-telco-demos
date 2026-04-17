@@ -88,50 +88,115 @@ apply_if_needed() {
   fi
 }
 
-# Install Service Mesh 3.x by dynamically discovering the 3.x channel from
-# the packagemanifest. The 'stable' channel of servicemeshoperator delivers
-# OSSM 2.x — we must find a channel whose currentCSV contains '.v3.'.
+# Tracks whether Service Mesh 3.x was actually installed so the wait step
+# can be skipped when OSSM is not available (it is optional for RawDeployment).
+SERVICEMESH_INSTALLED=false
+
+# Install cert-manager. If an OperatorGroup already exists in the namespace
+# (left by a prior run or pre-installed by the cluster provider), applying the
+# full YAML would create a second OperatorGroup and OLM would fail with
+# "multiple operatorgroups" — so we apply only the Subscription in that case.
+install_cert_manager() {
+  if csv_succeeded "cert-manager-operator" "cert-manager"; then
+    ok "cert-manager already installed — skipping"
+    return 0
+  fi
+  if subscription_exists "cert-manager-operator" "cert-manager"; then
+    warn "cert-manager subscription exists (CSV not yet Succeeded) — skipping re-apply"
+    return 0
+  fi
+
+  local og_count
+  og_count=$(oc get operatorgroup -n cert-manager-operator \
+    --no-headers 2>/dev/null | wc -l | xargs)
+
+  if [[ "${og_count:-0}" -gt 0 ]]; then
+    info "OperatorGroup already exists — applying cert-manager Subscription only..."
+    oc apply -f - <<'SUBEOF'
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-cert-manager-operator
+  namespace: cert-manager-operator
+spec:
+  channel: stable-v1
+  installPlanApproval: Automatic
+  name: openshift-cert-manager-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+SUBEOF
+  else
+    info "Applying cert-manager subscription..."
+    oc apply -f shared/operators/wave-0/02-certmanager-subscription.yaml
+  fi
+}
+
+# Install Service Mesh 3.x.
+# Strategy:
+#   1. Scan all channels of known package names using oc jsonpath (no Python).
+#      Pick the first channel whose currentCSV contains a v3.x version string.
+#   2. If CSV-based scan finds nothing, probe known channel name suffixes
+#      (stable-v3, tech-preview-v3.x, candidate) directly.
+#   3. OSSM is not required for KServe RawDeployment mode — if nothing is
+#      found, the script continues with a warning.
 install_servicemesh_3() {
-  # Already installed and it's 3.x — done.
+  # Already Succeeded — confirm it is 3.x.
   if csv_succeeded "openshift-operators" "servicemesh"; then
     local csv_name
     csv_name=$(oc get csv -n openshift-operators 2>/dev/null \
       | grep -i servicemesh | awk '{print $1}' | head -1 || true)
     if echo "$csv_name" | grep -qE "\.v3\."; then
       ok "Service Mesh 3.x already installed — skipping (${csv_name})"
-      return 0
+      SERVICEMESH_INSTALLED=true; return 0
     fi
-    warn "Service Mesh is installed but is 2.x: ${csv_name}"
-    warn "Attempting to install OSSM 3.x subscription alongside it..."
+    warn "Service Mesh ${csv_name} is 2.x — already subscribed, skipping re-apply"
+    return 0
   fi
 
-  # Subscription exists but CSV not Succeeded — avoid duplicate OperatorGroup.
   if subscription_exists "openshift-operators" "servicemesh"; then
     warn "Service Mesh subscription already exists — skipping re-apply"
+    SERVICEMESH_INSTALLED=true; return 0
+  fi
+
+  local found_pkg="" found_channel="" pkg channel_info channel
+
+  # Pass 1 — scan currentCSV of every channel across known package names.
+  for pkg in servicemeshoperator ossm3 sail-operator; do
+    oc get packagemanifests "$pkg" -n openshift-marketplace &>/dev/null || continue
+    # jsonpath prints "channelName\tcurrentCSV" per line (no Python needed).
+    channel_info=$(oc get packagemanifests "$pkg" -n openshift-marketplace \
+      -o jsonpath='{range .status.channels[*]}{.name}{"\t"}{.currentCSV}{"\n"}{end}' \
+      2>/dev/null || true)
+    info "  ${pkg} channels: $(echo "$channel_info" | awk -F'\t' '{print $1}' | tr '\n' ' ')"
+    # Match any channel whose CSV version segment starts with 3.
+    channel=$(echo "$channel_info" | awk -F'\t' '$2 ~ /\.v3\.|v3\.[0-9]/ {print $1; exit}' || true)
+    if [[ -n "$channel" ]]; then
+      found_pkg="$pkg"; found_channel="$channel"; break
+    fi
+  done
+
+  # Pass 2 — if CSV scan found nothing, probe well-known channel name suffixes.
+  if [[ -z "$found_pkg" ]]; then
+    for pkg in servicemeshoperator ossm3; do
+      oc get packagemanifests "$pkg" -n openshift-marketplace &>/dev/null || continue
+      channel_info=$(oc get packagemanifests "$pkg" -n openshift-marketplace \
+        -o jsonpath='{range .status.channels[*]}{.name}{"\n"}{end}' 2>/dev/null || true)
+      for candidate in stable-v3 tech-preview-v3.x candidate; do
+        if echo "$channel_info" | grep -qx "$candidate"; then
+          found_pkg="$pkg"; found_channel="$candidate"; break 2
+        fi
+      done
+    done
+  fi
+
+  if [[ -z "$found_pkg" ]]; then
+    warn "OSSM 3.x not found in catalog — skipping (not required for KServe RawDeployment mode)"
+    warn "To inspect available channels: oc get packagemanifests servicemeshoperator \\"
+    warn "  -n openshift-marketplace -o jsonpath='{range .status.channels[*]}{.name}{\"\\t\"}{.currentCSV}{\"\\n\"}{end}'"
     return 0
   fi
 
-  # Discover the OSSM 3.x channel from the packagemanifest.
-  info "Discovering Service Mesh 3.x channel from packagemanifest..."
-  local ossm3_channel
-  ossm3_channel=$(oc get packagemanifests servicemeshoperator \
-    -n openshift-marketplace -o json 2>/dev/null \
-    | python3 -c '
-import sys, json
-d = json.load(sys.stdin)
-for ch in d.get("status", {}).get("channels", []):
-    if ".v3." in ch.get("currentCSV", ""):
-        print(ch["name"])
-        break
-' 2>/dev/null || echo "")
-
-  if [[ -z "$ossm3_channel" ]]; then
-    warn "No OSSM 3.x channel found in the catalog for this cluster."
-    warn "Install Service Mesh 3.x manually from OperatorHub and re-run."
-    return 0
-  fi
-
-  info "Found OSSM 3.x channel: ${ossm3_channel} — applying subscription..."
+  info "Installing Service Mesh 3.x: package=${found_pkg}  channel=${found_channel}"
   oc apply -f - <<EOF
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
@@ -139,12 +204,13 @@ metadata:
   name: servicemeshoperator
   namespace: openshift-operators
 spec:
-  channel: ${ossm3_channel}
+  channel: ${found_channel}
   installPlanApproval: Automatic
-  name: servicemeshoperator
+  name: ${found_pkg}
   source: redhat-operators
   sourceNamespace: openshift-marketplace
 EOF
+  SERVICEMESH_INSTALLED=true
 }
 
 # Wait for ALL CSVs in a namespace to reach Succeeded.
@@ -226,8 +292,7 @@ oc apply -f shared/operators/wave-0/00-namespaces.yaml
 apply_if_needed "openshift-nfd"         "nfd"          "Node Feature Discovery" \
   shared/operators/wave-0/01-nfd-subscription.yaml
 
-apply_if_needed "cert-manager-operator" "cert-manager" "cert-manager" \
-  shared/operators/wave-0/02-certmanager-subscription.yaml
+install_cert_manager
 
 install_servicemesh_3
 
@@ -255,7 +320,11 @@ header "Step 2 — Wait: Wave 0 Operators Healthy"
 
 wait_for_csv       "openshift-nfd"         "Node Feature Discovery"    "$WAVE_TIMEOUT"
 wait_for_csv       "cert-manager-operator" "cert-manager"              "$WAVE_TIMEOUT"
-wait_for_csv_match "openshift-operators"   "servicemesh" "Service Mesh" "$WAVE_TIMEOUT"
+if [[ "$SERVICEMESH_INSTALLED" == "true" ]]; then
+  wait_for_csv_match "openshift-operators" "servicemesh" "Service Mesh" "$WAVE_TIMEOUT"
+else
+  warn "Service Mesh not installed — skipping wait (not required for KServe RawDeployment)"
+fi
 wait_for_csv_match "openshift-serverless"  "serverless"  "Serverless"   "$WAVE_TIMEOUT"
 
 ok "Wave 0 — all foundation operators healthy"
