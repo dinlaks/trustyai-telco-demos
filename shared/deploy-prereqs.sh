@@ -473,6 +473,23 @@ EOF
 
 ok "Data Science Project '${RHOAI_PROJECT}' created"
 
+# The ServiceAccount must exist before the Notebook CR is applied —
+# Kubernetes rejects the StatefulSet pod if the SA is missing.
+# The RHOAI dashboard creates the SA implicitly; we must do it explicitly.
+info "Creating workbench ServiceAccount: ${WORKBENCH_SA}..."
+oc apply -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ${WORKBENCH_SA}
+  namespace: ${RHOAI_PROJECT}
+  labels:
+    app: ${WORKBENCH_SA}
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/odh-managed: "true"
+EOF
+ok "ServiceAccount '${WORKBENCH_SA}' created"
+
 # ---------------------------------------------------------------------------
 # Step 8 — Create Workbench (PVC + Notebook CR)
 # ---------------------------------------------------------------------------
