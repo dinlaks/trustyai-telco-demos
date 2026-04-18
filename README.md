@@ -2,7 +2,8 @@
 
 End-to-end responsible AI demos for the telecom industry built on **Red Hat OpenShift AI** and **TrustyAI**. Each demo covers a distinct AI governance use case — bias detection, drift monitoring, explainability, and guardrails — using realistic 5G and network operations scenarios.
 
-> Validated on: OpenShift 4.20, 4.21+ | RHOAI 2.25 and 3.3
+> **Validated on:** OpenShift 4.18+ | RHOAI **2.25** (setup scripts target 2.25 only)
+> A notebook for RHOAI 3.3 is included for reference but the automated setup (`deploy-prereqs.sh`) is not validated on RHOAI 3.x.
 
 ---
 
@@ -49,8 +50,8 @@ trustyai-telco-demos/
 │   ├── teardown.sh                  # Removes all demo resources (--confirm required)
 │   └── operators/                   # Operator subscriptions — install before any demo
 │       ├── README.md                # Ordered install instructions (start here)
-│       ├── wave-0/                  # Foundation operators (NFD, cert-manager, OSSM 3, Serverless, GPU)
-│       ├── wave-1/                  # RHOAI 3.3 + Authorino
+│       ├── wave-0/                  # Foundation operators (NFD, cert-manager, OSSM 2.x, Serverless, GPU)
+│       ├── wave-1/                  # RHOAI 2.25 + Authorino
 │       └── post-install/            # DataScienceCluster CR + user workload monitoring
 │
 ├── bias-detection/                  # Demo 1 — Geographic bias in 5G slice allocation
@@ -71,7 +72,9 @@ trustyai-telco-demos/
 
 All demos share a common cluster setup. Run the steps below **once per cluster** as `cluster-admin` before opening any demo notebook.
 
-Requires a running **OpenShift 4.20 / 4.21+** cluster and `oc` CLI logged in as `cluster-admin`.
+Requires a running **OpenShift 4.18+** cluster and `oc` CLI logged in as `cluster-admin`.
+
+> ⚠️ **Version note:** `deploy-prereqs.sh` and all operator manifests target **RHOAI 2.25** with OSSM 2.x. They are not validated for RHOAI 3.x.
 
 ### Option A — Single script (recommended)
 
@@ -85,14 +88,14 @@ What it does:
 
 | Step | Action |
 |------|--------|
-| 1–2 | Wave 0 operators — NFD, cert-manager, Service Mesh, Serverless (waits for each to reach `Succeeded`) |
-| 3–4 | Wave 1 operators — RHOAI + Authorino (waits for `Succeeded`) |
-| 5–6 | DataScienceCluster CR + user workload monitoring (waits for `Ready`) |
-| 7–8 | Creates `rhoai-demo` Data Science Project + `telco-wb` workbench (PVC + Notebook CR) |
-| 9   | Waits for workbench pod to reach `Running` |
-| 10  | RBAC grants — `cluster-admin-setup.sh` |
-| 11  | KServe CA bundle patch — `patch-kserve.py` |
-| 12  | Runs `preflight.sh` and prints next steps |
+| 1–2  | Wave 0 operators — NFD, cert-manager, OSSM 2.x, Serverless (waits for `Succeeded`) |
+| 3–4  | Wave 1 operators — RHOAI 2.25 + Authorino (waits for `Succeeded`) |
+| 5–6  | DataScienceCluster CR + user workload monitoring (waits for `Ready`) |
+| 7–9  | Creates `rhoai-demo` project, waits for notebook webhook, creates `telco-wb` workbench |
+| 10   | Waits for workbench pod `2/2 Running` |
+| 11   | RBAC grants — `cluster-admin-setup.sh` |
+| 12   | Preflight validation — `preflight.sh` |
+| 13   | KServe CA bundle patch — `patch-kserve.py` (marks `inferenceservice-config` unmanaged + adds caBundle) |
 
 > **Note:** All `oc apply` calls are idempotent. Safe to re-run if the cluster already has operators installed (e.g. a Demo Platform environment with RHOAI pre-provisioned).
 

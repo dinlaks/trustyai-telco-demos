@@ -91,13 +91,17 @@ Workbench Notebook
 
 | Component | Version / Details |
 |-----------|------------------|
-| Red Hat OpenShift AI | 2.x and 3.x (**validated on 2.25 and 3.3**) |
+| Red Hat OpenShift AI | **2.25** (validated) · 3.3 notebook included for reference¹ |
 | TrustyAI | TrustyAIService CR (PVC storage) |
 | Model Server | KServe RawDeployment + OVMS |
 | Model Format | ONNX (MLP classifier, FP32 output) |
 | Object Storage | MinIO (Deployment + PVC) |
-| Pipelines | KFP v2 via Data Science Pipelines (DSPA) |
+| Pipelines | KFP v1 via Data Science Pipelines (DSPA) |
 | Namespace | `telco-bias-demo` |
+
+> ¹ `shared/deploy-prereqs.sh` and all operator manifests target **RHOAI 2.25** with OSSM 2.x.
+> The RHOAI 3.3 notebook (`trustyai-network-slice-bias-rhoai-3.3.ipynb`) is included for reference
+> but the automated setup is **not validated on RHOAI 3.x**.
 
 ---
 
@@ -113,8 +117,8 @@ trustyai-telco-demos/                              # repo root
 └── bias-detection/                                # this demo
     ├── README.md                                  # This file
     ├── notebooks/
-    │   ├── trustyai-network-slice-bias-rhoai-3.3.ipynb   # Main demo notebook (RHOAI 3.3)
-    │   └── trustyai-network-slice-bias-rhoai-2.25.ipynb  # Validated reference (RHOAI 2.25)
+    │   ├── trustyai-network-slice-bias-rhoai-2.25.ipynb  # ★ Primary — validated on RHOAI 2.25
+    │   └── trustyai-network-slice-bias-rhoai-3.3.ipynb   # Reference only — setup not validated for 3.x
     ├── docs/
     │   ├── business-use-case.md
     │   ├── trustyai-value-proposition.md
@@ -149,7 +153,7 @@ See [docs/prerequisites.md](docs/prerequisites.md) for full details.
 
 In Red Hat OpenShift AI:
 1. Create a workbench named `telco-wb` in project `rhoai-demo`
-2. Upload `notebooks/trustyai-network-slice-bias-rhoai-3.3.ipynb`
+2. Upload `notebooks/trustyai-network-slice-bias-rhoai-2.25.ipynb`
 3. Run cells top to bottom
 
 ### 3. Run the Demo
