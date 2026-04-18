@@ -1,21 +1,8 @@
-# DataScienceCluster CR — RHOAI 3.3
+# DataScienceCluster CR — RHOAI 2.25
 # Enables only the components required for the TrustyAI Telco Bias demo.
 # Apply AFTER the rhods-operator pod is Running in redhat-ods-operator.
 #
-# Components enabled:
-#   dashboard           — RHOAI web UI (project/workbench management)
-#   workbenches         — JupyterLab notebook environment
-#   kserve              — Model serving in RawDeployment mode (no Istio/Knative)
-#   trustyai            — Bias/fairness metrics, SPD/DIR computation
-#   datasciencepipelines— KFP-based retrain pipeline (notebook Cell 11a)
-#
-# Components explicitly disabled:
-#   modelmeshserving    — Deprecated in RHOAI 3.x; not used in this demo
-#   codeflare/ray/kueue — Distributed training stack; not needed
-#   trainingoperator    — Fine-tuning operator; not needed
-#   modelregistry       — Model registry service; not needed
-#
-# Apply with: oc apply -f shared/operators/post-install/01-datasciencecluster.yaml
+# Validated on: OpenShift 4.18+ + RHOAI 2.25 + OSSM 2.x
 ---
 apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
@@ -29,16 +16,13 @@ spec:
     dashboard:
       managementState: Managed
 
-    # ── Required: Notebook workbench (where the demo notebook runs) ──────
+    # ── Required: Notebook workbench ────────────────────────────────────
     workbenches:
       managementState: Managed
 
-    # ── Required: Model serving (RawDeployment — no Istio/Knative needed) ─
+    # ── Required: Model serving (RawDeployment — no Knative needed) ─────
     kserve:
       managementState: Managed
-      # serving.managementState: Removed disables Knative Serving entirely.
-      # The Serverless operator (Wave 0) satisfies the OLM dependency check
-      # but is not actively used for inference in RawDeployment mode.
       serving:
         managementState: Removed
       defaultDeploymentMode: RawDeployment
@@ -47,9 +31,7 @@ spec:
     trustyai:
       managementState: Managed
 
-    # ── Optional: Data Science Pipelines (KFP retrain — notebook Cell 11a) ─
-    # Cell 11b performs local retrain without KFP. Set to Removed if you
-    # want a lighter cluster footprint and will only use Cell 11b.
+    # ── Optional: Data Science Pipelines (KFP retrain — notebook Cell 12) ─
     datasciencepipelines:
       managementState: Managed
 
@@ -63,11 +45,5 @@ spec:
     ray:
       managementState: Removed
 
-    kueue:
-      managementState: Removed
-
     trainingoperator:
-      managementState: Removed
-
-    modelregistry:
       managementState: Removed

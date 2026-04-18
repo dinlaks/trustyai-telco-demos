@@ -1,4 +1,4 @@
-# Operator Pre-Requisites — RHOAI 3.3
+# Operator Pre-Requisites — RHOAI 2.25
 
 > **Prefer the automated path?** `bash shared/deploy-prereqs.sh` runs all of the steps below end-to-end — operators, DataScienceCluster, workbench creation, RBAC, and KServe patch — with health checks between each wave. Use this manual guide when you need per-step control or to troubleshoot a specific wave.
 
@@ -9,7 +9,7 @@ All steps require `cluster-admin` privileges.
 
 ## Step 0 — OpenShift Cluster
 
-**A running OpenShift 4.21+ cluster is required before proceeding.**
+**A running OpenShift 4.18+ cluster is required before proceeding.**
 
 Verify your cluster version and admin access:
 
@@ -53,7 +53,7 @@ oc apply -f shared/operators/wave-0/01-nfd-subscription.yaml
 # 3. cert-manager — TLS certificate automation
 oc apply -f shared/operators/wave-0/02-certmanager-subscription.yaml
 
-# 4. OpenShift Service Mesh 3 — operator dependency for RHOAI
+# 4. OpenShift Service Mesh 2.x — operator dependency for RHOAI 2.25
 oc apply -f shared/operators/wave-0/03-servicemesh-subscription.yaml
 
 # 5. OpenShift Serverless — operator dependency for RHOAI
@@ -136,10 +136,10 @@ Then proceed to the demo notebook in `bias-detection/notebooks/`.
 |----------|-----------|------|----------|
 | Node Feature Discovery | `openshift-nfd` | 0 | Yes |
 | cert-manager | `cert-manager-operator` | 0 | Yes |
-| OpenShift Service Mesh 3.2.2 | `openshift-operators` | 0 | Yes (RHOAI dependency) |
+| OpenShift Service Mesh 2.x | `openshift-operators` | 0 | Yes (RHOAI dependency) |
 | OpenShift Serverless | `openshift-serverless` | 0 | Yes (RHOAI dependency) |
 | NVIDIA GPU Operator | `nvidia-gpu-operator` | 0 | Optional |
-| Red Hat OpenShift AI 3.3 | `redhat-ods-operator` | 1 | Yes |
+| Red Hat OpenShift AI 2.25 | `redhat-ods-operator` | 1 | Yes |
 | Authorino | `openshift-operators` | 1 | Yes |
 | DataScienceCluster CR | `redhat-ods-operator` | post | Yes |
 | User Workload Monitoring | `openshift-monitoring` | post | Yes |

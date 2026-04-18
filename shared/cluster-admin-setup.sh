@@ -73,6 +73,51 @@ oc adm policy add-role-to-user admin "${WB_SA}" -n openshift-config-managed
 echo "  OK"
 echo ""
 
+# Step 7: Grant workbench SA rights to pause RHOAI operator + patch inferenceservice-config
+#   RHOAI 2.25.4 reconciles inferenceservice-config immediately when changed, removing
+#   the caBundle field needed for TrustyAI TLS. Cell 7 briefly scales the RHOAI operator
+#   to 0 replicas, patches the configmap, creates the ISVC (so the KServe webhook reads
+#   the patched config at pod admission), then restores the operator.
+echo "[7/7] Granting RHOAI pause + inferenceservice-config patch rights..."
+oc apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${WB_NAME}-rhoai-ops
+  namespace: redhat-ods-operator
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments","deployments/scale"]
+  resourceNames: ["rhods-operator"]
+  verbs: ["get","patch","update"]
+EOF
+oc create rolebinding "${WB_NAME}-rhoai-ops" \
+  --role="${WB_NAME}-rhoai-ops" \
+  --serviceaccount="${WB_PROJECT}:${WB_NAME}" \
+  -n redhat-ods-operator 2>/dev/null \
+  || oc patch rolebinding "${WB_NAME}-rhoai-ops" -n redhat-ods-operator \
+       --type=merge -p "{\"subjects\":[{\"kind\":\"ServiceAccount\",\"name\":\"${WB_NAME}\",\"namespace\":\"${WB_PROJECT}\"}]}"
+oc apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${WB_NAME}-kserve-config
+  namespace: redhat-ods-applications
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["inferenceservice-config"]
+  verbs: ["get","patch","update"]
+EOF
+oc create rolebinding "${WB_NAME}-kserve-config" \
+  --role="${WB_NAME}-kserve-config" \
+  --serviceaccount="${WB_PROJECT}:${WB_NAME}" \
+  -n redhat-ods-applications 2>/dev/null \
+  || oc patch rolebinding "${WB_NAME}-kserve-config" -n redhat-ods-applications \
+       --type=merge -p "{\"subjects\":[{\"kind\":\"ServiceAccount\",\"name\":\"${WB_NAME}\",\"namespace\":\"${WB_PROJECT}\"}]}"
+echo "  OK"
+echo ""
+
 # Verification
 echo "======================================================================"
 echo "  Verification"

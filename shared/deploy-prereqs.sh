@@ -9,18 +9,18 @@
 #
 # Steps (in order):
 #   1.  Sanity checks — oc logged in, cluster-admin, python3
-#   2.  Wave 0 — NFD, cert-manager, Service Mesh, Serverless operator subscriptions
+#   2.  Wave 0 — NFD, cert-manager, Service Mesh 2.x, Serverless subscriptions
 #   3.  Wait  — Wave 0 CSVs reach Succeeded
-#   4.  Wave 1 — RHOAI + Authorino subscriptions
+#   4.  Wave 1 — RHOAI 2.25 + Authorino subscriptions
 #   5.  Wait  — Wave 1 CSVs reach Succeeded
 #   6.  Post-install — DataScienceCluster CR + user workload monitoring
 #   7.  Wait  — DataScienceCluster reaches Ready
 #   8.  Create rhoai-demo Data Science Project
-#   9.  Create workbench PVC + Notebook CR (telco-wb)
-#   10. Wait  — workbench pod Running (workbench SA is created by the pod)
-#   11. RBAC  — cluster-admin-setup.sh (grants, demo namespace)
-#   12. Patch — KServe CA bundle (patch-kserve.py)
-#   13. Final preflight validation
+#   9.  Wait for ODH notebook controller mutating webhook
+#   10. Create workbench PVC + Notebook CR (telco-wb)
+#   11. Wait  — workbench pod Running (2/2 with OAuth proxy)
+#   12. Preflight validation
+#   13. Patch — KServe CA bundle (marks inferenceservice-config as unmanaged + adds caBundle)
 #
 # Prerequisites:
 #   - oc CLI installed and logged in as cluster-admin
@@ -30,7 +30,7 @@
 # Override defaults via env vars:
 #   RHOAI_PROJECT, WORKBENCH_SA, NAMESPACE, WAVE_TIMEOUT, DSC_TIMEOUT, WB_TIMEOUT
 #
-# Validated on: OpenShift 4.20 + RHOAI 3.3
+# Validated on: OpenShift 4.18+ + RHOAI 2.25 + OSSM 2.x
 # =============================================================================
 
 set -euo pipefail
@@ -57,25 +57,41 @@ ok()     { echo -e "    ${GREEN}OK${RESET}  $*"; }
 warn()   { echo -e "    ${YELLOW}WARN${RESET} $*"; }
 die()    { echo -e "\n    ${RED}ERROR${RESET} $*" >&2; exit 1; }
 
-# Returns true if a CSV matching pattern in namespace is already Succeeded.
+# Returns true if a CSV matching pattern is Succeeded in ANY of the given namespaces.
+csv_succeeded_any() {
+  local pattern="$1"; shift
+  local ns phase
+  for ns in "$@"; do
+    phase=$(oc get csv -n "$ns" 2>/dev/null | grep -i "$pattern" | awk '{print $NF}' | head -1 || true)
+    [[ "$phase" == "Succeeded" ]] && return 0
+  done
+  return 1
+}
+
+# Returns true if a CSV matching pattern is Succeeded in the given namespace.
 csv_succeeded() {
   local ns="$1" pattern="$2"
-  local phase
-  phase=$(oc get csv -n "$ns" 2>/dev/null | grep -i "$pattern" | awk '{print $NF}' | head -1 || true)
-  [[ "$phase" == "Succeeded" ]]
+  csv_succeeded_any "$pattern" "$ns"
 }
 
-# Returns true if a Subscription matching pattern already exists in namespace.
-# Used to avoid re-applying YAMLs that would create duplicate OperatorGroups
-# when a previous install left the CSV in a non-Succeeded state (e.g. Unknown).
+# Returns true if a Subscription matching pattern exists in ANY of the given namespaces.
+subscription_exists_any() {
+  local pattern="$1"; shift
+  local ns
+  for ns in "$@"; do
+    oc get subscription -n "$ns" 2>/dev/null | grep -qi "$pattern" && return 0
+  done
+  return 1
+}
+
+# Returns true if a Subscription matching pattern exists in the given namespace.
 subscription_exists() {
   local ns="$1" pattern="$2"
-  oc get subscription -n "$ns" 2>/dev/null | grep -qi "$pattern"
+  subscription_exists_any "$pattern" "$ns"
 }
 
-# Apply an operator subscription file only when the operator is not already
-# present. Skips if CSV is Succeeded OR if a Subscription already exists —
-# the latter prevents duplicate OperatorGroup conflicts on re-runs.
+# Skip if CSV is already Succeeded OR a subscription already exists.
+# Use this for any operator that installs into a single known namespace.
 apply_if_needed() {
   local ns="$1" pattern="$2" label="$3" file="$4"
   if csv_succeeded "$ns" "$pattern"; then
@@ -88,77 +104,55 @@ apply_if_needed() {
   fi
 }
 
-# Tracks whether Service Mesh 3.x was actually installed so the wait step
-# can be skipped when OSSM is not available (it is optional for RawDeployment).
-SERVICEMESH_INSTALLED=false
-
-# Install cert-manager.
-# Root cause of Unknown CSV: multiple OperatorGroups in the namespace —
-# OLM cannot pick one and leaves the CSV in Unknown indefinitely.
-# This function actively removes duplicate OGs so OLM can self-heal,
-# then creates the Subscription (with dynamically discovered channel)
-# only if it does not already exist.
+# Install cert-manager — checks CSV and subscription across all namespaces
+# it may have been installed in, and removes duplicate OperatorGroups.
 install_cert_manager() {
-  # Accept Succeeded in any namespace cert-manager may have been installed in.
-  for ns in cert-manager-operator cert-manager openshift-operators; do
-    if csv_succeeded "$ns" "cert-manager"; then
-      ok "cert-manager already Succeeded in '${ns}' — skipping"
-      return 0
-    fi
-  done
-
-  # ── Fix duplicate OperatorGroups ────────────────────────────────────────
-  # OLM sets CSV to Unknown when a namespace has more than one OG.
-  # Delete our copy first; if multiple remain, delete all and start clean.
-  local og_count
-  og_count=$(oc get operatorgroup -n cert-manager-operator \
-    --no-headers 2>/dev/null | wc -l | xargs)
-
-  if [[ "${og_count:-0}" -gt 1 ]]; then
-    warn "Found ${og_count} OperatorGroups in cert-manager-operator — removing duplicates..."
-    oc delete operatorgroup cert-manager-operator-group \
-      -n cert-manager-operator 2>/dev/null \
-      && info "  Deleted: cert-manager-operator-group" || true
-
-    # Recount
-    og_count=$(oc get operatorgroup -n cert-manager-operator \
-      --no-headers 2>/dev/null | wc -l | xargs)
-
-    if [[ "${og_count:-0}" -gt 1 ]]; then
-      warn "  Still ${og_count} OGs present — deleting all and recreating one..."
-      oc delete operatorgroup --all -n cert-manager-operator 2>/dev/null || true
-      og_count=0
-    fi
-    ok "OperatorGroup count fixed — OLM will now reconcile the CSV"
-  fi
-
-  # ── If subscription already exists, OLM self-heals once OG is clean ────
-  if subscription_exists "cert-manager-operator" "cert-manager"; then
-    info "cert-manager Subscription exists — OLM will move CSV to Succeeded now that OG is fixed"
+  # Skip if cert-manager is already Succeeded in any namespace it may live in.
+  if csv_succeeded_any "cert-manager" \
+      cert-manager-operator cert-manager openshift-operators; then
+    ok "cert-manager already installed — skipping"
     return 0
   fi
 
-  # ── Discover latest stable-v1.x channel ─────────────────────────────────
+  # Skip if a subscription already exists in any relevant namespace.
+  if subscription_exists_any "cert-manager" \
+      cert-manager-operator cert-manager openshift-operators; then
+    warn "cert-manager subscription already exists (CSV not yet Succeeded) — skipping re-apply"
+    return 0
+  fi
+
+  # Fix duplicate OperatorGroups — OLM leaves CSV in Unknown when > 1 OG exists.
+  local og_count
+  og_count=$(oc get operatorgroup -n cert-manager-operator \
+    --no-headers 2>/dev/null | wc -l | xargs)
+  if [[ "${og_count:-0}" -gt 1 ]]; then
+    warn "Found ${og_count} OperatorGroups in cert-manager-operator — removing duplicates..."
+    oc delete operatorgroup cert-manager-operator-group \
+      -n cert-manager-operator 2>/dev/null || true
+    og_count=$(oc get operatorgroup -n cert-manager-operator \
+      --no-headers 2>/dev/null | wc -l | xargs)
+    if [[ "${og_count:-0}" -gt 1 ]]; then
+      oc delete operatorgroup --all -n cert-manager-operator 2>/dev/null || true
+      og_count=0
+    fi
+    ok "OperatorGroup count fixed"
+  fi
+
   info "Discovering latest cert-manager channel..."
   local channel
   channel=$(oc get packagemanifests openshift-cert-manager-operator \
     -n openshift-marketplace \
     -o jsonpath='{range .status.channels[*]}{.name}{"\n"}{end}' 2>/dev/null \
     | grep -E '^stable-v1\.' | sort -t. -k2 -V | tail -1 || echo "")
-
-  if [[ -z "$channel" ]]; then
-    channel=$(oc get packagemanifests openshift-cert-manager-operator \
-      -n openshift-marketplace \
-      -o jsonpath='{.status.defaultChannel}' 2>/dev/null || echo "stable-v1")
-  fi
+  [[ -z "$channel" ]] && channel=$(oc get packagemanifests openshift-cert-manager-operator \
+    -n openshift-marketplace \
+    -o jsonpath='{.status.defaultChannel}' 2>/dev/null || echo "stable-v1")
   info "  Channel: ${channel}"
 
-  # Recheck OG count (may have been reset above)
   og_count=$(oc get operatorgroup -n cert-manager-operator \
     --no-headers 2>/dev/null | wc -l | xargs)
 
   if [[ "${og_count:-0}" -gt 0 ]]; then
-    info "OperatorGroup present — applying Subscription only..."
     oc apply -f - <<EOF
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
@@ -173,7 +167,6 @@ spec:
   sourceNamespace: openshift-marketplace
 EOF
   else
-    info "No OperatorGroup — creating OperatorGroup + Subscription..."
     oc apply -f - <<EOF
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
@@ -199,93 +192,21 @@ EOF
   fi
 }
 
-# Install Service Mesh 3.x.
-# Strategy:
-#   1. Scan all channels of known package names using oc jsonpath (no Python).
-#      Pick the first channel whose currentCSV contains a v3.x version string.
-#   2. If CSV-based scan finds nothing, probe known channel name suffixes
-#      (stable-v3, tech-preview-v3.x, candidate) directly.
-#   3. OSSM is not required for KServe RawDeployment mode — if nothing is
-#      found, the script continues with a warning.
-install_servicemesh_3() {
-  # Already Succeeded — confirm it is 3.x.
-  if csv_succeeded "openshift-operators" "servicemesh"; then
-    local csv_name
-    csv_name=$(oc get csv -n openshift-operators 2>/dev/null \
-      | grep -i servicemesh | awk '{print $1}' | head -1 || true)
-    if echo "$csv_name" | grep -qE "\.v3\."; then
-      ok "Service Mesh 3.x already installed — skipping (${csv_name})"
-      SERVICEMESH_INSTALLED=true; return 0
-    fi
-    warn "Service Mesh ${csv_name} is 2.x — already subscribed, skipping re-apply"
+# Install Service Mesh 2.x — checks both CSV and subscription before applying.
+# Skips cleanly if any version of servicemesh is already installed.
+install_servicemesh_2() {
+  if csv_succeeded_any "servicemesh" openshift-operators; then
+    ok "Service Mesh already installed — skipping"
     return 0
   fi
-
-  if subscription_exists "openshift-operators" "servicemesh"; then
-    warn "Service Mesh subscription already exists — skipping re-apply"
-    SERVICEMESH_INSTALLED=true; return 0
-  fi
-
-  local found_pkg="" found_channel="" pkg channel_info channel
-
-  # Step 1: Try 'ossm3' package with channel 'stable' — this is the dedicated
-  # "Red Hat OpenShift Service Mesh 3" operator package (separate from the
-  # legacy servicemeshoperator package which delivers OSSM 2.x on stable).
-  if oc get packagemanifests ossm3 -n openshift-marketplace &>/dev/null 2>&1; then
-    info "Found 'ossm3' package — installing with channel: stable"
-    oc apply -f - <<'EOF'
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: ossm3
-  namespace: openshift-operators
-spec:
-  channel: stable
-  installPlanApproval: Automatic
-  name: ossm3
-  source: redhat-operators
-  sourceNamespace: openshift-marketplace
-EOF
-    SERVICEMESH_INSTALLED=true
+  if subscription_exists_any "servicemesh" openshift-operators; then
+    warn "Service Mesh subscription already exists (CSV not yet Succeeded) — skipping re-apply"
     return 0
   fi
-
-  # Step 2: Fall back — scan all channels of servicemeshoperator for a 3.x CSV.
-  info "  'ossm3' package not found — scanning servicemeshoperator channels..."
-  if oc get packagemanifests servicemeshoperator -n openshift-marketplace &>/dev/null 2>&1; then
-    local channel_info channel
-    channel_info=$(oc get packagemanifests servicemeshoperator \
-      -n openshift-marketplace \
-      -o jsonpath='{range .status.channels[*]}{.name}{"\t"}{.currentCSV}{"\n"}{end}' \
-      2>/dev/null || true)
-    info "  Available channels: $(echo "$channel_info" | awk -F'\t' '{print $1}' | tr '\n' ' ')"
-    channel=$(echo "$channel_info" | awk -F'\t' '$2 ~ /\.v3\.|v3\.[0-9]/ {print $1; exit}' || true)
-    if [[ -n "$channel" ]]; then
-      info "  Found 3.x channel: ${channel} — applying subscription..."
-      oc apply -f - <<EOF
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: servicemeshoperator
-  namespace: openshift-operators
-spec:
-  channel: ${channel}
-  installPlanApproval: Automatic
-  name: servicemeshoperator
-  source: redhat-operators
-  sourceNamespace: openshift-marketplace
-EOF
-      SERVICEMESH_INSTALLED=true
-      return 0
-    fi
-  fi
-
-  warn "OSSM 3.x not found in catalog — skipping (not required for KServe RawDeployment mode)"
-  warn "Check catalog: oc get packagemanifests -n openshift-marketplace | grep -i mesh"
-  return 0
+  info "Applying Service Mesh 2.x subscription (stable channel)..."
+  oc apply -f shared/operators/wave-0/03-servicemesh-subscription.yaml
 }
 
-# Wait for ALL CSVs in a namespace to reach Succeeded.
 wait_for_csv() {
   local ns="$1" label="$2" timeout="${3:-$WAVE_TIMEOUT}"
   local t=0 phases failed
@@ -301,7 +222,6 @@ wait_for_csv() {
   done
 }
 
-# Wait for a CSV matching a grep pattern in a namespace.
 wait_for_csv_match() {
   local ns="$1" pattern="$2" label="$3" timeout="${4:-$WAVE_TIMEOUT}"
   local t=0 phase
@@ -315,16 +235,17 @@ wait_for_csv_match() {
   done
 }
 
-# Wait for a pod label to reach Running.
 wait_for_pod() {
   local ns="$1" selector="$2" label="$3" timeout="${4:-$WB_TIMEOUT}"
-  local t=0 phase
-  echo -n "    Waiting for ${label} pod to reach Running"
+  local t=0 ready
+  echo -n "    Waiting for ${label} pod to reach Running (2/2)"
   while true; do
     [[ "$t" -ge "$timeout" ]] && { echo ""; die "Timed out after ${timeout}s waiting for ${label} pod in ${ns}"; }
-    phase=$(oc get pod -n "$ns" -l "$selector" \
-      -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
-    if [[ "$phase" == "Running" ]]; then echo " OK"; return 0; fi
+    ready=$(oc get pod -n "$ns" -l "$selector" \
+      -o jsonpath='{.items[0].status.containerStatuses[*].ready}' 2>/dev/null || echo "")
+    # In RHOAI 2.x the notebook pod has 2 containers (notebook + OAuth proxy).
+    # Require both to be ready before proceeding.
+    if [[ "$ready" == "true true" ]]; then echo " OK"; return 0; fi
     echo -n "."
     sleep 15; t=$(( t + 15 ))
   done
@@ -361,26 +282,22 @@ header "Step 1 — Wave 0: Foundation Operators"
 info "Applying namespace manifests..."
 oc apply -f shared/operators/wave-0/00-namespaces.yaml
 
-apply_if_needed "openshift-nfd"         "nfd"          "Node Feature Discovery" \
+apply_if_needed "openshift-nfd" "nfd" "Node Feature Discovery" \
   shared/operators/wave-0/01-nfd-subscription.yaml
 
 install_cert_manager
 
-install_servicemesh_3
+install_servicemesh_2
 
-apply_if_needed "openshift-serverless"  "serverless"   "OpenShift Serverless" \
+apply_if_needed "openshift-serverless" "serverless" "OpenShift Serverless" \
   shared/operators/wave-0/04-serverless-subscription.yaml
 
 GPU_NODES=$(oc get nodes \
   -o jsonpath='{.items[*].status.capacity.nvidia\.com/gpu}' 2>/dev/null \
   | tr ' ' '\n' | grep -c '[1-9]' || echo "0")
 if [[ "${GPU_NODES}" -gt 0 ]]; then
-  if csv_succeeded "nvidia-gpu-operator" "gpu"; then
-    ok "NVIDIA GPU operator already installed — skipping"
-  else
-    info "GPU nodes detected — applying NVIDIA GPU operator subscription..."
-    oc apply -f shared/operators/wave-0/05-gpu-operator-subscription.yaml
-  fi
+  apply_if_needed "nvidia-gpu-operator" "gpu" "NVIDIA GPU Operator" \
+    shared/operators/wave-0/05-gpu-operator-subscription.yaml
 else
   warn "No GPU nodes detected — skipping GPU operator (optional)"
 fi
@@ -390,23 +307,19 @@ fi
 # ---------------------------------------------------------------------------
 header "Step 2 — Wait: Wave 0 Operators Healthy"
 
-wait_for_csv       "openshift-nfd"         "Node Feature Discovery"    "$WAVE_TIMEOUT"
-wait_for_csv       "cert-manager-operator" "cert-manager"              "$WAVE_TIMEOUT"
-if [[ "$SERVICEMESH_INSTALLED" == "true" ]]; then
-  wait_for_csv_match "openshift-operators" "servicemesh\|ossm" "Service Mesh 3.x" "$WAVE_TIMEOUT"
-else
-  warn "Service Mesh not installed — skipping wait (not required for KServe RawDeployment)"
-fi
-wait_for_csv_match "openshift-serverless"  "serverless"  "Serverless"   "$WAVE_TIMEOUT"
+wait_for_csv       "openshift-nfd"         "Node Feature Discovery" "$WAVE_TIMEOUT"
+wait_for_csv       "cert-manager-operator" "cert-manager"           "$WAVE_TIMEOUT"
+wait_for_csv_match "openshift-operators"   "servicemesh"  "Service Mesh 2.x" "$WAVE_TIMEOUT"
+wait_for_csv_match "openshift-serverless"  "serverless"   "Serverless"       "$WAVE_TIMEOUT"
 
 ok "Wave 0 — all foundation operators healthy"
 
 # ---------------------------------------------------------------------------
-# Step 3 — Wave 1: RHOAI + Authorino
+# Step 3 — Wave 1: RHOAI 2.25 + Authorino
 # ---------------------------------------------------------------------------
-header "Step 3 — Wave 1: RHOAI + Authorino"
+header "Step 3 — Wave 1: RHOAI 2.25 + Authorino"
 
-apply_if_needed "redhat-ods-operator" "rhods"     "RHOAI"     \
+apply_if_needed "redhat-ods-operator" "rhods"     "RHOAI 2.25" \
   shared/operators/wave-1/01-rhoai-subscription.yaml
 
 apply_if_needed "openshift-operators" "authorino" "Authorino" \
@@ -420,7 +333,7 @@ header "Step 4 — Wait: Wave 1 Operators Healthy"
 wait_for_csv       "redhat-ods-operator" "RHOAI"     "$WAVE_TIMEOUT"
 wait_for_csv_match "openshift-operators" "authorino" "Authorino" "$WAVE_TIMEOUT"
 
-ok "Wave 1 — RHOAI + Authorino healthy"
+ok "Wave 1 — RHOAI 2.25 + Authorino healthy"
 
 # ---------------------------------------------------------------------------
 # Step 5 — Post-install: DataScienceCluster + User Workload Monitoring
@@ -473,9 +386,7 @@ EOF
 
 ok "Data Science Project '${RHOAI_PROJECT}' created"
 
-# The ServiceAccount must exist before the Notebook CR is applied —
-# Kubernetes rejects the StatefulSet pod if the SA is missing.
-# The RHOAI dashboard creates the SA implicitly; we must do it explicitly.
+# The ServiceAccount must exist before the Notebook CR is applied.
 info "Creating workbench ServiceAccount: ${WORKBENCH_SA}..."
 oc apply -f - <<EOF
 apiVersion: v1
@@ -491,12 +402,31 @@ EOF
 ok "ServiceAccount '${WORKBENCH_SA}' created"
 
 # ---------------------------------------------------------------------------
-# Step 8 — Create Workbench (PVC + Notebook CR)
+# Step 8 — Wait for ODH notebook controller mutating webhook
 # ---------------------------------------------------------------------------
-header "Step 8 — Create Workbench: ${WORKBENCH_SA}"
+header "Step 8 — Wait: ODH Notebook Controller Webhook"
 
-# Resolve the latest Standard Data Science notebook image from the RHOAI imagestream.
-# Falls back to 'latest' if the imagestream is not yet populated.
+# The webhook injects the OAuth proxy sidecar at Notebook creation time.
+# Applying the Notebook CR before the webhook is ready means no OAuth proxy,
+# no Route, and a workbench pod that cannot be opened from the dashboard.
+nb_wh_t=0
+nb_wh_timeout=180
+echo -n "    Waiting for odh-notebook-controller mutating webhook"
+until oc get mutatingwebhookconfiguration odh-notebook-controller-mutating-webhook-configuration \
+    &>/dev/null 2>&1; do
+  [[ "$nb_wh_t" -ge "$nb_wh_timeout" ]] \
+    && die "Timed out waiting for odh-notebook-controller mutating webhook (${nb_wh_timeout}s)"
+  echo -n "."
+  sleep 10; nb_wh_t=$(( nb_wh_t + 10 ))
+done
+echo ""
+ok "ODH notebook controller webhook ready"
+
+# ---------------------------------------------------------------------------
+# Step 9 — Create Workbench (PVC + Notebook CR)
+# ---------------------------------------------------------------------------
+header "Step 9 — Create Workbench: ${WORKBENCH_SA}"
+
 info "Resolving Standard Data Science notebook image from imagestream..."
 NB_TAG=$(oc get is s2i-generic-data-science-notebook -n redhat-ods-applications \
   -o jsonpath='{.status.tags[0].tag}' 2>/dev/null || echo "latest")
@@ -596,9 +526,9 @@ spec:
 EOF
 
 # ---------------------------------------------------------------------------
-# Step 9 — Wait: Workbench pod Running
+# Step 10 — Wait: Workbench pod Running (2/2 with OAuth proxy)
 # ---------------------------------------------------------------------------
-header "Step 9 — Wait: Workbench Pod Running"
+header "Step 10 — Wait: Workbench Pod Running"
 
 wait_for_pod "${RHOAI_PROJECT}" "app=${WORKBENCH_SA}" "${WORKBENCH_SA}" "$WB_TIMEOUT"
 
@@ -609,20 +539,11 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 10 — RBAC: cluster-admin-setup.sh
+# Step 11 — RBAC: cluster-admin-setup.sh
 # ---------------------------------------------------------------------------
-header "Step 10 — RBAC: cluster-admin-setup.sh"
+header "Step 11 — RBAC: cluster-admin-setup.sh"
 
 bash shared/cluster-admin-setup.sh
-
-# ---------------------------------------------------------------------------
-# Step 11 — KServe CA bundle patch
-# ---------------------------------------------------------------------------
-header "Step 11 — KServe CA Bundle Patch"
-
-python3 shared/patch-kserve.py
-
-ok "KServe inferenceservice-config patched"
 
 # ---------------------------------------------------------------------------
 # Step 12 — Final preflight validation
@@ -630,6 +551,18 @@ ok "KServe inferenceservice-config patched"
 header "Step 12 — Preflight Validation"
 
 bash shared/preflight.sh || true
+
+# ---------------------------------------------------------------------------
+# Step 13 — KServe CA bundle patch (runs last)
+# ---------------------------------------------------------------------------
+header "Step 13 — KServe CA Bundle Patch"
+
+# patch-kserve.py does two things permanently:
+#   1. Annotates inferenceservice-config with opendatahub.io/managed=false
+#      so the RHOAI operator stops reconciling it.
+#   2. Adds caBundle/caCertFile so the KServe agent can verify TrustyAI TLS.
+python3 shared/patch-kserve.py
+ok "KServe inferenceservice-config patched (permanent — RHOAI will not revert)"
 
 # ---------------------------------------------------------------------------
 # Summary
@@ -646,7 +579,7 @@ echo ""
 echo "  3. Click 'Open' to launch JupyterLab."
 echo ""
 echo "  4. Upload the demo notebook:"
-echo "     bias-detection/notebooks/trustyai-network-slice-bias-rhoai-3.3.ipynb"
+echo "     bias-detection/notebooks/trustyai-network-slice-bias-rhoai-2.25.ipynb"
 echo ""
 echo "  5. Run all cells top to bottom."
 echo -e "${BOLD}============================================================${RESET}"
